@@ -1,0 +1,28 @@
+# Corpus state — auto-generated, contains local file paths
+corpus_state.yaml
+
+# Generated prompt files — assembled at runtime by refine.py
+bootstrap_prompt.md
+refinement_prompt.md
+
+# Your personal voice model — not part of the pipeline source
+SKILL.md
+
+# Auto-generated working directories
+batch_notes/
+stripped_text/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+

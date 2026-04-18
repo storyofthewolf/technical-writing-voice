@@ -1,0 +1,27 @@
+# Corpus state — auto-generated, contains local file paths
+corpus_state.yaml
+ 
+# Generated LLM session prompts — assembled at runtime by refine.py, land in /prompts
+# Pattern: bootstrap_prompt_YYYY-MM-DD.md, refinement_prompt_DOCID+DOCID_YYYY-MM-DD.md
+prompts/
+ 
+# Your personal voice model — not part of the pipeline source
+SKILL.md
+ 
+# Auto-generated working directories
+batch_notes/
+stripped_text/
+ 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+ 
+# macOS
+.DS_Store
+ 
+# Editor
+.vscode/
+.idea/
