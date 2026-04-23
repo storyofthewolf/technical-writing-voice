@@ -13,7 +13,7 @@ Triggered when uploaded file front matter contains `action: extract`
 2. Read `doc_id`, `doc_type`, `confidence` from front matter
 3. The file contains the stripped document text followed by the extraction prompt instructions
 4. Run the extraction: analyze the document text against all nine dimensions per the instructions
-5. Produce the batch notes as a downloadable markdown artifact named exactly as `output_file`
+5. Produce the batch notes as a downloadable markdown artifact. The artifact  filename must be exactly the value of `output_file` from the front matter (e.g. `notes_wolf2025psj.md`). Use the Artifacts feature — do not print the content inline in the chat.
 6. No other output — the artifact is the entire response
 
 ## Action: bootstrap
