@@ -11,7 +11,10 @@ SKILL.md
 # Auto-generated working directories
 batch_notes/
 stripped_text/
- 
+
+# Achive directory populated from past iterations
+archive/
+
 # Python
 __pycache__/
 *.pyc

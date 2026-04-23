@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 corpus.py
 ---------
@@ -255,7 +257,29 @@ def cmd_set_notes(doc_id, notes, state):
     print("Run 'python corpus.py' to see registered IDs.")
 
 
+BATCH_NOTES_DIR = Path("batch_notes")
+
+
+def _auto_mark_done(state: dict) -> None:
+    today = datetime.now().strftime("%Y-%m-%d")
+    changed = False
+    for doc in state["documents"]:
+        if doc.get("processed"):
+            continue
+        doc_id = doc["id"]
+        candidate = BATCH_NOTES_DIR / f"notes_{doc_id}.md"
+        if candidate.exists():
+            doc["processed"] = True
+            doc["batch_notes_file"] = str(candidate)
+            doc["processed_date"] = today
+            changed = True
+            print(f"  [auto-marked done] {doc_id} -> {candidate}")
+    if changed:
+        save_state(state)
+
+
 def cmd_status(state):
+    _auto_mark_done(state)
     docs = state["documents"]
     if not docs:
         print("No documents registered.")

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 refine.py
 ---------
@@ -40,12 +42,34 @@ import yaml
 # can be invoked from any working directory.
 HERE = Path(__file__).parent
 
+OVERRIDES_FILE = HERE / "overrides.yaml"
 STATE_FILE = HERE / "corpus_state.yaml"
 SKILL_FILE = HERE / "SKILL.md"
 SKILL_TEMPLATE_FILE = HERE / "core" / "SKILL_TEMPLATE.md"
 REFINEMENT_PROMPT_FILE = HERE / "templates" / "refinement_prompt.md"
 SYNTHESIS_PROMPT_FILE = HERE / "templates" / "synthesis_prompt.md"
 EVALUATION_DIMENSIONS_FILE = HERE / "core" / "EVALUATION_DIMENSIONS.md"
+
+
+# ---------------------------------------------------------------------------
+# Overrides
+# ---------------------------------------------------------------------------
+
+def load_overrides() -> list:
+    if not OVERRIDES_FILE.exists():
+        return []
+    with open(OVERRIDES_FILE) as f:
+        data = yaml.safe_load(f) or []
+    return data if isinstance(data, list) else []
+
+
+def _overrides_block(overrides: list) -> str:
+    if not overrides:
+        return ""
+    lines = ["## Manual Overrides", ""]
+    for i, o in enumerate(overrides, 1):
+        lines.append(f"{i}. {o['instruction']}")
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +322,21 @@ def cmd_apply(skill_path: str, response_file: str, state: dict) -> None:
         print_conflict(response_text)
         print("\nSKILL.md was NOT updated. Resolve the conflict first.")
         return
+
+    # Append current overrides to SKILL.md
+    overrides = load_overrides()
+    overrides_block = _overrides_block(overrides)
+    marker = "## Manual Overrides"
+    if marker in response_text:
+        response_text = re.sub(
+            r"## Manual Overrides\b.*",
+            overrides_block,
+            response_text,
+            count=1,
+            flags=re.DOTALL,
+        )
+    elif overrides_block:
+        response_text = response_text.rstrip("\n") + "\n\n---\n\n" + overrides_block + "\n"
 
     # Write SKILL.md
     out_path = Path(skill_path)
