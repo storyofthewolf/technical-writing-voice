@@ -36,6 +36,7 @@ HERE = Path(__file__).parent
 ARCHIVE_DIR = HERE / "archive"
 SKILL_FILE = HERE / "SKILL.md"
 BATCH_NOTES_DIR = HERE / "batch_notes"
+PROMPTS_DIR = HERE / "prompts"
 STATE_FILE = HERE / "corpus_state.yaml"
 
 
@@ -69,6 +70,10 @@ def do_snapshot(run_dir: Path) -> None:
     if BATCH_NOTES_DIR.exists():
         shutil.copytree(BATCH_NOTES_DIR, run_dir / BATCH_NOTES_DIR.name)
         copied.append(f"{BATCH_NOTES_DIR.name}/")
+
+    if PROMPTS_DIR.exists():
+        shutil.copytree(PROMPTS_DIR, run_dir / PROMPTS_DIR.name)
+        copied.append(f"{PROMPTS_DIR.name}/")
 
     if STATE_FILE.exists():
         shutil.copy2(STATE_FILE, run_dir / STATE_FILE.name)

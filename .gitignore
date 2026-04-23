@@ -28,3 +28,5 @@ venv/
 # Editor
 .vscode/
 .idea/
+
+*.txt
