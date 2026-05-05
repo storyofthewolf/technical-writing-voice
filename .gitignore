@@ -30,3 +30,7 @@ venv/
 .idea/
 
 *.txt
+
+.claude/
+
+overrides.yaml

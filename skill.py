@@ -1,30 +1,31 @@
 #!/usr/bin/env python
 
 """
-refine.py
----------
-Prepares a refinement prompt that compares new batch notes against the current
-SKILL.md and produces an updated SKILL.md. Handles three cases:
-
-  1. Confirmation — new document supports existing patterns (auto-updates confidence)
-  2. Addition — new document reveals patterns not in current SKILL.md (auto-adds)
-  3. Contradiction — new document conflicts with existing patterns (STOPS, asks you)
-
-If Claude's response contains a CONFLICT REVIEW block, refine.py prints it
-for your review and does not write to SKILL.md until you resolve it.
+skill.py
+--------
+Builds and maintains SKILL.md from corpus batch notes.
 
 Usage:
-    # After marking a document done with extract.py:
-    python refine.py                          # refine using all unprocessed notes
-    python refine.py --notes batch_notes/notes_myDoc.md   # specific notes file
-    python refine.py --bootstrap              # first-time: synthesis from all notes
+    python skill.py --bootstrap
+        First-time synthesis prompt from all processed notes.
+        Paste output into Claude → save response as SKILL.md.
 
-    # After resolving a conflict Claude flagged:
-    python refine.py --resolve               # rerun after you've edited the notes
+    python skill.py --refine FILE
+        Refinement prompt comparing a specific notes file against current SKILL.md.
+        Paste output into Claude → save response → run --apply.
 
-Output:
-    Prints a ready-to-paste prompt. Paste into Claude, save response.
-    Then run: python refine.py --apply SKILL.md path/to/claude_response.md
+    python skill.py --refine --all
+        Refinement prompt bundling all unrefined notes against current SKILL.md.
+
+    python skill.py --apply CLAUDE_RESPONSE
+        Apply Claude's refinement response to SKILL.md (conflict-checks first).
+        Backs up current SKILL.md to skills/SKILL_{timestamp}.md before writing.
+
+    python skill.py --overrides
+        Append or replace the ## Manual Overrides section in SKILL.md from overrides.yaml.
+
+    python skill.py --output FILE
+        Write prompt to FILE instead of the default prompts/ path.
 
 Dependencies:
     pip install pyyaml
@@ -38,8 +39,6 @@ from pathlib import Path
 
 import yaml
 
-# All paths resolve relative to this script's directory so the script
-# can be invoked from any working directory.
 HERE = Path(__file__).parent
 
 OVERRIDES_FILE = HERE / "overrides.yaml"
@@ -47,6 +46,7 @@ STATE_FILE = HERE / "corpus_state.yaml"
 SKILL_FILE = HERE / "SKILL.md"
 SKILL_TEMPLATE_FILE = HERE / "core" / "SKILL_TEMPLATE.md"
 REFINEMENT_PROMPT_FILE = HERE / "templates" / "refinement_prompt.md"
+REVISION_PROMPT_FILE = HERE / "templates" / "revision_prompt.md"
 SYNTHESIS_PROMPT_FILE = HERE / "templates" / "synthesis_prompt.md"
 EVALUATION_DIMENSIONS_FILE = HERE / "core" / "EVALUATION_DIMENSIONS.md"
 
@@ -96,10 +96,6 @@ def load_file(path: Path, label: str) -> str:
 # ---------------------------------------------------------------------------
 
 def compute_corpus_stats(state: dict) -> dict:
-    """
-    Returns stats about the processed corpus for use in prompts and SKILL.md metadata.
-    Effective tokens = prose_tokens * (confidence / 5) per document.
-    """
     processed = [d for d in state["documents"] if d.get("processed")]
     raw_tokens = sum(d.get("prose_tokens", 0) for d in processed)
     effective_tokens = sum(
@@ -115,13 +111,6 @@ def compute_corpus_stats(state: dict) -> dict:
 
 
 def compute_new_doc_influence(new_doc: dict, corpus_stats: dict) -> float:
-    """
-    Returns the fractional influence of a new document relative to the existing corpus.
-    influence = (new_effective_tokens) / (corpus_effective_tokens + new_effective_tokens)
-
-    A document added to a 200k effective-token corpus with 10k effective tokens
-    gets ~5% influence. This is shown to Claude explicitly to prevent overweighting.
-    """
     new_effective = new_doc.get("prose_tokens", 0) * new_doc.get("confidence", 3) / 5.0
     corpus_effective = corpus_stats["effective_tokens"]
     if corpus_effective + new_effective == 0:
@@ -134,7 +123,6 @@ def compute_new_doc_influence(new_doc: dict, corpus_stats: dict) -> float:
 # ---------------------------------------------------------------------------
 
 def get_unrefined_notes(state: dict) -> list[dict]:
-    """Return processed documents whose notes haven't been incorporated into SKILL.md yet."""
     return [
         d for d in state["documents"]
         if d.get("processed") and not d.get("refined_into_skill")
@@ -146,7 +134,6 @@ def get_unrefined_notes(state: dict) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def build_bootstrap_prompt(state: dict) -> str:
-    """First-time synthesis prompt — all notes, no existing SKILL.md."""
     synthesis_prompt = load_file(SYNTHESIS_PROMPT_FILE, "synthesis_prompt.md")
     skill_template = load_file(SKILL_TEMPLATE_FILE, "SKILL_TEMPLATE.md")
     eval_dims = load_file(EVALUATION_DIMENSIONS_FILE, "EVALUATION_DIMENSIONS.md")
@@ -169,7 +156,7 @@ def build_bootstrap_prompt(state: dict) -> str:
 - Analysis date: {datetime.now().strftime("%Y-%m")}
 """
 
-    prompt = f"""---
+    return f"""---
 action: bootstrap
 output_file: SKILL.md
 generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -200,15 +187,12 @@ generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 {synthesis_prompt}
 """
-    return prompt
 
 
 def build_refinement_prompt(new_notes_docs: list[dict], state: dict) -> str:
-    """Refinement prompt — new notes compared against existing SKILL.md."""
     refinement_prompt_template = load_file(REFINEMENT_PROMPT_FILE, "refinement_prompt.md")
     current_skill = load_file(SKILL_FILE, "SKILL.md")
     corpus_stats = compute_corpus_stats(state)
-    docs_by_id = {d["id"]: d for d in state["documents"]}
 
     new_notes_block = ""
     influence_notes = []
@@ -248,7 +232,7 @@ New document(s) influence weights:
 {chr(10).join(influence_notes)}
 """
 
-    prompt = f"""---
+    return f"""---
 action: refine
 output_file: SKILL.md
 generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
@@ -273,7 +257,34 @@ generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 {refinement_prompt_template}
 """
-    return prompt
+
+
+def build_revision_prompt(instructions: str) -> str:
+    revision_prompt_template = load_file(REVISION_PROMPT_FILE, "revision_prompt.md")
+    current_skill = load_file(SKILL_FILE, "SKILL.md")
+
+    return f"""---
+action: revision
+output_file: SKILL.md
+generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
+---
+
+## Revision instructions
+
+{instructions}
+
+---
+
+## Current SKILL.md
+
+{current_skill}
+
+---
+
+## Revision guidelines
+
+{revision_prompt_template}
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +299,6 @@ def detect_conflict(response_text: str) -> bool:
 
 
 def print_conflict(response_text: str) -> None:
-    """Extract and print the conflict review block from Claude's response."""
     idx = response_text.find(CONFLICT_MARKER)
     print("\n" + "=" * 68)
     print("CONFLICT DETECTED — Review required before SKILL.md is updated")
@@ -298,19 +308,15 @@ def print_conflict(response_text: str) -> None:
     print("\nTo resolve:")
     print("  1. Review the conflict above")
     print("  2. Edit the batch notes or SKILL.md as appropriate")
-    print("  3. Rerun: python refine.py --apply SKILL.md <response_file>")
+    print("  3. Rerun: python skill.py --apply <claude_response>")
     print("     with a revised Claude response that resolves the conflict")
 
 
 # ---------------------------------------------------------------------------
-# Apply response to SKILL.md
+# Commands
 # ---------------------------------------------------------------------------
 
-def cmd_apply(skill_path: str, response_file: str, state: dict) -> None:
-    """
-    Write Claude's response to SKILL.md (after conflict check).
-    Mark contributing documents as refined_into_skill.
-    """
+def cmd_apply(response_file: str, state: dict) -> None:
     response_path = Path(response_file)
     if not response_path.exists():
         print(f"ERROR: Response file not found: {response_path}")
@@ -323,7 +329,7 @@ def cmd_apply(skill_path: str, response_file: str, state: dict) -> None:
         print("\nSKILL.md was NOT updated. Resolve the conflict first.")
         return
 
-    # Append current overrides to SKILL.md
+    # Inject overrides
     overrides = load_overrides()
     overrides_block = _overrides_block(overrides)
     marker = "## Manual Overrides"
@@ -338,10 +344,8 @@ def cmd_apply(skill_path: str, response_file: str, state: dict) -> None:
     elif overrides_block:
         response_text = response_text.rstrip("\n") + "\n\n---\n\n" + overrides_block + "\n"
 
-    # Write SKILL.md
-    out_path = Path(skill_path)
-    out_path.write_text(response_text, encoding="utf-8")
-    print(f"SKILL.md updated: {out_path}")
+    SKILL_FILE.write_text(response_text, encoding="utf-8")
+    print(f"SKILL.md updated.")
 
     # Mark unrefined docs as refined
     updated = 0
@@ -357,78 +361,135 @@ def cmd_apply(skill_path: str, response_file: str, state: dict) -> None:
         print(f"Marked {updated} document(s) as incorporated into SKILL.md.")
 
 
+def cmd_overrides() -> None:
+    if not SKILL_FILE.exists():
+        print(f"ERROR: SKILL.md not found at {SKILL_FILE}")
+        sys.exit(1)
+
+    overrides = load_overrides()
+    if not overrides:
+        print("No overrides found in overrides.yaml — nothing to do.")
+        return
+
+    overrides_block = _overrides_block(overrides)
+    skill_text = SKILL_FILE.read_text(encoding="utf-8")
+
+    marker = "## Manual Overrides"
+    if marker in skill_text:
+        skill_text = re.sub(
+            r"## Manual Overrides\b.*",
+            overrides_block,
+            skill_text,
+            count=1,
+            flags=re.DOTALL,
+        )
+    else:
+        skill_text = skill_text.rstrip("\n") + "\n\n---\n\n" + overrides_block + "\n"
+
+    SKILL_FILE.write_text(skill_text, encoding="utf-8")
+    print(f"SKILL.md updated with {len(overrides)} override(s).")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Prepare refinement or synthesis prompts for SKILL.md."
+        description="Build and maintain SKILL.md from corpus batch notes."
     )
-    parser.add_argument("--notes", metavar="FILE",
-                        help="Specific batch notes file to refine against current SKILL.md")
     parser.add_argument("--bootstrap", action="store_true",
                         help="Generate first-time synthesis prompt from all processed notes")
-    parser.add_argument("--apply", nargs=2, metavar=("SKILL_FILE", "RESPONSE_FILE"),
-                        help="Apply Claude's response to SKILL.md (after conflict check)")
+    parser.add_argument("--refine", metavar="FILE", nargs="?", const="--all",
+                        help="Generate refinement prompt for FILE, or --all for all unrefined notes")
+    parser.add_argument("--all", action="store_true",
+                        help="Used with --refine: bundle all unrefined notes into one prompt")
+    parser.add_argument("--revision", metavar="FILE",
+                        help="Generate revision prompt from freeform instructions file")
+    parser.add_argument("--apply", metavar="CLAUDE_RESPONSE",
+                        help="Apply Claude's refinement response to SKILL.md (backs up first)")
+    parser.add_argument("--overrides", action="store_true",
+                        help="Append or replace ## Manual Overrides section in SKILL.md")
     parser.add_argument("--output", metavar="FILE",
-                        help="Write prompt to file instead of stdout")
+                        help="Write prompt to FILE instead of default prompts/ path")
     args = parser.parse_args()
+
+    if args.overrides:
+        cmd_overrides()
+        return
 
     state = load_state()
 
     if args.apply:
-        cmd_apply(args.apply[0], args.apply[1], state)
+        cmd_apply(args.apply, state)
         return
 
     datestamp = datetime.now().strftime("%Y-%m-%d")
-    new_docs = []  # tracks which docs are being incorporated, for filename construction
+    new_docs = []
 
     if args.bootstrap:
         prompt = build_bootstrap_prompt(state)
-    elif args.notes:
-        # Find the doc entry for this notes file
-        matching = [
-            d for d in state["documents"]
-            if d.get("batch_notes_file") == args.notes or
-               d.get("batch_notes_file") == str(Path(args.notes))
-        ]
-        if not matching:
-            print(f"ERROR: No document found with notes file: {args.notes}")
-            print("Make sure you ran: python extract.py --mark-done DOC_ID NOTES_FILE")
-            sys.exit(1)
-        new_docs = matching
-        prompt = build_refinement_prompt(matching, state)
-    else:
-        # Default: all unrefined processed documents
-        unrefined = get_unrefined_notes(state)
-        if not unrefined:
-            print("No unrefined batch notes found.")
-            print("All processed documents have been incorporated into SKILL.md.")
-            print("To add new documents: python corpus.py --add <path>")
-            return
-        if not SKILL_FILE.exists():
-            print("No SKILL.md found. Run with --bootstrap for first-time synthesis.")
-            return
-        new_docs = unrefined
-        prompt = build_refinement_prompt(unrefined, state)
 
-    # Determine default output filename — includes doc IDs and datestamp so
-    # generated files are never silently overwritten between runs.
-    # Generated prompts land in /prompts; templates live in /templates.
+    elif args.revision:
+        revision_path = Path(args.revision)
+        if not revision_path.exists():
+            print(f"ERROR: Instructions file not found: {revision_path}")
+            sys.exit(1)
+        if not SKILL_FILE.exists():
+            print("No SKILL.md found. Run --bootstrap first.")
+            sys.exit(1)
+        instructions = revision_path.read_text(encoding="utf-8")
+        prompt = build_revision_prompt(instructions)
+
+    elif args.refine is not None:
+        if args.all or args.refine == "--all":
+            # Bundle all unrefined notes
+            unrefined = get_unrefined_notes(state)
+            if not unrefined:
+                print("No unrefined batch notes found.")
+                print("All processed documents have been incorporated into SKILL.md.")
+                print("To add new documents: python corpus.py --add <path>")
+                return
+            if not SKILL_FILE.exists():
+                print("No SKILL.md found. Run --bootstrap for first-time synthesis.")
+                return
+            new_docs = unrefined
+            prompt = build_refinement_prompt(unrefined, state)
+        else:
+            # Specific notes file
+            notes_file = args.refine
+            matching = [
+                d for d in state["documents"]
+                if d.get("batch_notes_file") == notes_file or
+                   d.get("batch_notes_file") == str(Path(notes_file))
+            ]
+            if not matching:
+                print(f"ERROR: No document found with notes file: {notes_file}")
+                print("Make sure you ran: python extract.py --mark-done DOC_ID NOTES_FILE")
+                sys.exit(1)
+            new_docs = matching
+            prompt = build_refinement_prompt(matching, state)
+
+    else:
+        parser.print_help()
+        return
+
     PROMPTS_DIR = HERE / "prompts"
     PROMPTS_DIR.mkdir(exist_ok=True)
+
     if args.output:
         out_path = Path(args.output)
     elif args.bootstrap:
         out_path = PROMPTS_DIR / f"bootstrap_prompt_{datestamp}.md"
+    elif args.revision:
+        out_path = PROMPTS_DIR / f"revision_prompt_{datestamp}.md"
     else:
         doc_slug = "+".join(d["id"] for d in new_docs)
         out_path = PROMPTS_DIR / f"refinement_prompt_{doc_slug}_{datestamp}.md"
 
     out_path.write_text(prompt, encoding="utf-8")
     print(f"Prompt written to: {out_path}")
-    print(f"Upload {out_path.name} to Claude → save response as SKILL.md")
+    print(f"Upload {out_path.name} to Claude → save response → run: python skill.py --apply <response_file>")
 
 
 if __name__ == "__main__":
