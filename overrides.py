@@ -4,8 +4,9 @@
 overrides.py
 ------------
 Manage manual overrides for voice refinement. Overrides are stored in
-overrides.yaml at the project root and injected into every prompt generated
-by refine.py.
+overrides.yaml at the project root and injected as a ## Manual Overrides section
+into the profile's SKILL.md by skill.py --apply / --overrides. They are
+post-processing only and are never included in prompts sent to Claude.
 
 Usage:
     python overrides.py list

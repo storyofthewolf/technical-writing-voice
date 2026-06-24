@@ -44,7 +44,7 @@ Read it first. The dimension sections provide the detail behind it.
 **Corpus recency mode:** [uniform / recency — halflife N years]
 
 ## Corpus metadata
-<!-- Updated automatically by refine.py on each refinement run. Do not edit by hand. -->
+<!-- Updated automatically by skill.py on each refinement run. Do not edit by hand. -->
 
 **Documents processed:** [N]
 **Raw prose tokens:** [N — informational corpus size; not a weight]

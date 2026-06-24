@@ -5,12 +5,11 @@ skill.py
 --------
 Builds and maintains purpose-specific SKILL.md profiles from corpus batch notes.
 
-Profiles are defined in profiles.yaml. Each profile is a narrow voice skill
-aimed at one writing context (e.g. `paper`). The selected profile determines
-which document types feed synthesis, which synthesis instructions are used,
-where the built skill is written, and how the skill handles LaTeX/.bib markup.
-If profiles.yaml is absent, skill.py falls back to legacy single-SKILL.md
-behavior writing to ./SKILL.md.
+Profiles are defined in profiles.yaml (required). Each profile is a narrow voice
+skill aimed at one writing context (e.g. `paper`). The selected profile
+determines which document types feed synthesis, which synthesis instructions are
+used, where the built skill is written, and how the skill handles LaTeX/.bib
+markup.
 
 Usage:
     python skill.py [--profile NAME] --bootstrap
@@ -58,10 +57,9 @@ REFINEMENT_PROMPT_FILE = HERE / "templates" / "refinement_prompt.md"
 REVISION_PROMPT_FILE = HERE / "templates" / "revision_prompt.md"
 EVALUATION_DIMENSIONS_FILE = HERE / "core" / "EVALUATION_DIMENSIONS.md"
 
-# Legacy defaults, used only when profiles.yaml is absent.
-LEGACY_SKILL_FILE = HERE / "SKILL.md"
-LEGACY_SKILL_TEMPLATE_FILE = HERE / "core" / "SKILL_TEMPLATE.md"
-LEGACY_SYNTHESIS_PROMPT_FILE = HERE / "templates" / "synthesis_prompt.md"
+# General fallback skill-output template, used by any profile that does not set
+# its own `skill_template` and is not the slim `paper` profile.
+GENERAL_SKILL_TEMPLATE_FILE = HERE / "core" / "SKILL_TEMPLATE.md"
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +87,7 @@ class Profile:
         elif (HERE / "core" / "SKILL_TEMPLATE_PAPER.md").exists() and name == "paper":
             self.skill_template = HERE / "core" / "SKILL_TEMPLATE_PAPER.md"
         else:
-            self.skill_template = LEGACY_SKILL_TEMPLATE_FILE
+            self.skill_template = GENERAL_SKILL_TEMPLATE_FILE
 
     @property
     def refined_flag(self) -> str:
@@ -102,24 +100,11 @@ class Profile:
         return doc.get("type") in self.corpus_types
 
 
-def _legacy_profile() -> Profile:
-    """Profile used when profiles.yaml is absent — original single-SKILL.md behavior."""
-    p = Profile("legacy", {})
-    p.output = LEGACY_SKILL_FILE
-    p.synthesis_template = LEGACY_SYNTHESIS_PROMPT_FILE
-    p.skill_template = LEGACY_SKILL_TEMPLATE_FILE
-    p.corpus_types = None
-    # Legacy uses the original flag name, not a per-profile one.
-    p._legacy = True
-    return p
-
-
 def load_profile(name: str | None) -> Profile:
     if not PROFILES_FILE.exists():
-        if name and name != "legacy":
-            print(f"WARNING: profiles.yaml not found; --profile {name} ignored, "
-                  "using legacy SKILL.md behavior.")
-        return _legacy_profile()
+        print("ERROR: profiles.yaml not found. It defines the available skill "
+              "profiles and is required.")
+        sys.exit(1)
 
     with open(PROFILES_FILE) as f:
         cfg = yaml.safe_load(f) or {}
@@ -141,18 +126,12 @@ def load_profile(name: str | None) -> Profile:
 
 
 def is_refined(doc: dict, profile: Profile) -> bool:
-    if getattr(profile, "_legacy", False):
-        return bool(doc.get("refined_into_skill"))
     return bool(doc.get(profile.refined_flag))
 
 
 def set_refined(doc: dict, profile: Profile, value: bool) -> None:
-    if getattr(profile, "_legacy", False):
-        doc["refined_into_skill"] = value
-        doc["refined_date"] = datetime.now().strftime("%Y-%m-%d")
-    else:
-        doc[profile.refined_flag] = value
-        doc[f"refined_date_{profile.name}"] = datetime.now().strftime("%Y-%m-%d")
+    doc[profile.refined_flag] = value
+    doc[f"refined_date_{profile.name}"] = datetime.now().strftime("%Y-%m-%d")
 
 
 # ---------------------------------------------------------------------------

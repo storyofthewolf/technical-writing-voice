@@ -83,8 +83,8 @@ conflicts in one context).
 
 ### skill.py
 - `class Profile` — resolved settings for one profile (skill_name, purpose, corpus_types, target_tokens, latex_policy, output path, synthesis_template, skill_template). `.refined_flag` → `refined_into_skill_<name>`; `.matches_type(doc)`.
-- `load_profile(name)` — read `profiles.yaml`; falls back to `_legacy_profile()` (single `SKILL.md`) if the file is absent.
-- `is_refined(doc, profile)` / `set_refined(doc, profile, value)` — per-profile incorporation flag (legacy mode uses the original `refined_into_skill`).
+- `load_profile(name)` — read `profiles.yaml` (required; exits with an error if absent); resolve the named or `default_profile` entry.
+- `is_refined(doc, profile)` / `set_refined(doc, profile, value)` — per-profile incorporation flag (`refined_into_skill_<name>`).
 - `compute_corpus_stats(state, profile)` — doc count + raw tokens (no weighting); filters to the profile's `corpus_types`.
 - `build_bootstrap_prompt` / `build_refinement_prompt` / `build_revision_prompt` — assemble the prompt embedding notes, templates, and a profile-directives block.
 - `cmd_apply(response_file, state, profile)` — conflict-check (`## CONFLICT REVIEW` → halt), inject overrides, write `profile.output`, mark matching docs incorporated.

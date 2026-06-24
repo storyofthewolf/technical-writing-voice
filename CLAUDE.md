@@ -22,13 +22,13 @@ See `README.md` for full workflow documentation.
 
 ## Key files
 
-- `profiles.yaml` — defines each purpose-specific skill (name, purpose, source `corpus_types`, synthesis template, output path, token budget, `latex_policy`) plus `default_profile`. Add a new entry to create a new skill — no script changes needed. If absent, `skill.py` falls back to legacy single-`SKILL.md` behavior.
-- `corpus_state.yaml` — tracks all registered documents and their processing state. Incorporation is tracked **per profile** via `refined_into_skill_<profile>` flags (legacy mode uses the original `refined_into_skill`).
+- `profiles.yaml` — defines each purpose-specific skill (name, purpose, source `corpus_types`, synthesis template, output path, token budget, `latex_policy`) plus `default_profile`. Add a new entry to create a new skill — no script changes needed. Required: `skill.py` exits with an error if it is absent.
+- `corpus_state.yaml` — tracks all registered documents and their processing state. Incorporation is tracked **per profile** via `refined_into_skill_<profile>` flags.
 - `overrides.yaml` — manual editorial directives; never touched by `archive.py`; injected into the selected profile's `SKILL.md` by `skill.py --apply` or `skill.py --overrides`
 - `skills/<profile>/SKILL.md` — the built voice skill for each profile (e.g. `skills/paper/SKILL.md`). Copy into `.claude/skills/` when ready for Claude Code to load.
 - `templates/` — LLM instruction templates embedded in generated prompts; not modified by scripts
   - `extraction_prompt.md` — voice extraction instructions
-  - `synthesis_prompt.md` — general (legacy) first-time synthesis instructions
+  - `synthesis_prompt.md` — general first-time synthesis instructions (default for profiles that don't set their own `synthesis_template`)
   - `synthesis_paper.md` — slim, manuscript-register synthesis for the `paper` profile (single register, hard token budget, LaTeX deferred)
   - `refinement_prompt.md` — incremental refinement instructions
   - `revision_prompt.md` — freeform manual revision instructions
@@ -57,7 +57,7 @@ python skill.py --output FILE                                 # write prompt to 
 
 ## Design rules to preserve
 
-**Profiles drive the output target.** `skill.py` reads `profiles.yaml` and resolves a `Profile` (default `paper`). Every action writes to that profile's `output` path (e.g. `skills/paper/SKILL.md`), filters notes by the profile's `corpus_types`, and uses the profile's synthesis template and skill template. The bootstrap prompt injects a "Profile directives" block (skill name, purpose, token budget, LaTeX policy) so Claude builds the right skill. If `profiles.yaml` is absent, a legacy profile reproduces the original single-`SKILL.md` behavior unchanged.
+**Profiles drive the output target.** `skill.py` reads `profiles.yaml` and resolves a `Profile` (default `paper`). Every action writes to that profile's `output` path (e.g. `skills/paper/SKILL.md`), filters notes by the profile's `corpus_types`, and uses the profile's synthesis template and skill template. The bootstrap prompt injects a "Profile directives" block (skill name, purpose, token budget, LaTeX policy) so Claude builds the right skill. `profiles.yaml` is required; `skill.py` exits with an error if it is absent.
 
 **Incorporation is per profile.** `--apply` marks a document incorporated by setting `refined_into_skill_<profile>` (e.g. `refined_into_skill_paper`), not a global flag. Building one profile never marks documents as done for another. Legacy mode uses the original `refined_into_skill`.
 

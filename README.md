@@ -4,7 +4,7 @@ A pipeline for extracting a scientist's technical writing voice from a corpus of
 
 **Profiles.** The pipeline no longer targets one monolithic skill. `profiles.yaml` defines a separate, narrow skill per writing purpose. The primary profile is **`paper`**: a slim manuscript-writing voice built from journal papers and proposals only, designed for **Claude Code to load when editing a GitHub-backed Overleaf/LaTeX repository**. It governs prose voice and argument structure; LaTeX, `.bib`, and figure markup are left to Claude's standard conventions. Informal registers (emails, letters, statements) are intentionally out of scope — that personal-touch writing resists AI help, whereas formal manuscript prose is where assistance pays off.
 
-The original general-purpose `SKILL.md` and its templates remain in the repo (legacy mode, used automatically if `profiles.yaml` is removed), but the workflow below is written for the profile model. Where the docs below say "SKILL.md," read it as "the selected profile's `SKILL.md`" (default: `skills/paper/SKILL.md`), and add `--profile NAME` to `skill.py` commands to target a specific profile.
+`profiles.yaml` is required — it defines the available skills. Where the docs below say "SKILL.md," read it as "the selected profile's `SKILL.md`" (default: `skills/paper/SKILL.md`), and add `--profile NAME` to `skill.py` commands to target a specific profile.
 
 ---
 

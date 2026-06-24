@@ -85,7 +85,7 @@ A contradiction is NOT genuine (resolve silently) when:
 
 WAITING FOR YOUR INPUT. Do not update SKILL.md until you respond.
 To proceed: edit this response file to remove the CONFLICT REVIEW block,
-add a resolution note, and rerun: python refine.py --apply SKILL.md <response_file>
+add a resolution note, and rerun: python skill.py --apply <response_file>
 ```
 
 ---
