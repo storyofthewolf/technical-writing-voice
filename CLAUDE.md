@@ -79,12 +79,29 @@ python skill.py --output FILE                                 # write prompt to 
 
 ---
 
+## Claude Code skills
+
+The two model-driven stages run as project skills in `.claude/skills/` (tracked; the `.gitignore` allows `.claude/skills/**` while keeping `settings.local.json` local). They drive the deterministic CLI scripts; the model work happens in cold subagents so a loaded voice skill cannot contaminate the read. See `DESIGN.md` for the full architecture and rationale.
+
+- **`/extract-corpus`** — extraction. Resolves targets (`corpus.py --pending`), strips via `extract.py`, sanity-checks strips (flag-only), spawns **one cold Opus subagent per document** to write `batch_notes/notes_{doc}.md` with a provenance header, then syncs state. Sharded for cross-document isolation.
+- **`/build-skill`** — synthesis. Assembles the prompt via `skill.py --bootstrap`/`--refine --all --output`, runs **one cold Opus subagent over all the profile's notes** (cannot shard — must resolve cross-document conflicts in one context), then `skill.py --apply` (bootstrap always applies; refine halts on `## CONFLICT REVIEW`). `--revision` stays a manual `skill.py` command.
+
+**Provenance is automatic.** Each notes file's YAML header (`extracted`, `model`) is the source of truth; `corpus.py`'s `_auto_mark_done()` reads it back into `corpus_state.yaml` (`extraction_model`, `extracted_date`) on every status call and shows `[model, date]` in the PROCESSED listing. Headerless legacy notes show `unknown`.
+
+**Fine-tuning layer is deferred (not built).** A draft → critique-against-failure-modes → revise loop will eventually sit between synthesis and apply and take over override injection. Until then, override injection stays inside `skill.py --apply`. Do not treat fine-tuning as existing.
+
 ## Current script inventory
 
-| Script | Status |
+| Script / skill | Status |
 |--------|--------|
-| `corpus.py` | Stable |
-| `extract.py` | Stable |
-| `skill.py` | Stable — replaced `refine.py` |
+| `corpus.py` | Stable — added provenance read-back + `--pending`; removed confidence |
+| `extract.py` | Stable — removed `--priority`/confidence |
+| `skill.py` | Stable — profile-aware; replaced `refine.py`; removed weighting math |
 | `overrides.py` | Stable |
 | `archive.py` | Stable |
+| `/extract-corpus` | Stable (project skill) |
+| `/build-skill` | Stable (project skill) |
+
+## Session handoff
+
+The pipeline runs end-to-end in Claude Code (no claude.ai round-trip). Branch `paper-profile-refactor` holds the refactor. **Open threads:** (1) `skills/paper/SKILL.md` is currently a hand-drafted skill, not a pipeline bootstrap — run `/build-skill` to produce the canonical version under even-contribution synthesis; (2) no tooling yet for **deploying** the built skill into the author's Overleaf repo's `.claude/skills/` (manual `cp` for now); (3) the **fine-tuning layer** is designed-but-unbuilt, pending observation of how the raw skill performs.

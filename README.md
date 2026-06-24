@@ -8,6 +8,41 @@ The original general-purpose `SKILL.md` and its templates remain in the repo (le
 
 ---
 
+## Quick start
+
+The whole pipeline runs inside Claude Code. The two model-driven stages are slash-command skills; you only run `corpus.py` by hand. See `DESIGN.md` for the architecture.
+
+```bash
+# 1. Register documents you want in the voice (papers + proposals for the paper profile).
+#    No confidence rating — every registered document contributes evenly, so register
+#    only what you actually want to represent your voice.
+python corpus.py --add path/to/Paper.pdf --type journal_paper --notes "sole author"
+python corpus.py --add path/to/proposals/        # a whole directory at once
+python corpus.py                                 # status check
+```
+
+```
+2. Extract — in Claude Code, just invoke the skill:
+   /extract-corpus                  # all pending docs (one cold Opus subagent each)
+   /extract-corpus wolf_2018        # or specific doc IDs
+   → writes batch_notes/notes_{doc}.md with a model+date provenance header
+
+3. Build the skill — also a Claude Code skill:
+   /build-skill                     # bootstrap the paper profile from all its notes
+   /build-skill --refine            # later: fold in newly added docs (halts on conflict)
+   → writes skills/paper/SKILL.md (overrides injected, docs marked incorporated)
+```
+
+```bash
+# 4. Deploy: copy the built skill into the repo where you actually write,
+#    so Claude Code loads it when you edit LaTeX.
+cp skills/paper/SKILL.md /path/to/overleaf-repo/.claude/skills/eric-wolf-paper-voice/SKILL.md
+```
+
+**Returning after a break?** Run `python corpus.py` — it shows every document's status (extracted? which model? incorporated into the skill?). To add a manual editorial directive that survives every rebuild: `python overrides.py add "..."`.
+
+---
+
 ## What this project does
 
 Most AI writing assistance produces generic academic prose. This pipeline produces something different: a structured voice model built by machine-analyzing the author's own documents across nine linguistic dimensions — syntax, semantics, vocabulary, rhythm, epistemic stance, argumentation, transitions, quantitative integration, and register modulation. The result is a `SKILL.md` file that Claude reads as a persistent Project instruction, allowing it to write in a voice a colleague would recognize.
@@ -22,28 +57,30 @@ The pipeline is **additive**. You start with a small bootstrap corpus and refine
 
 ## Quick orientation (read this when returning after a break)
 
-The pipeline has three stages. Each stage produces an output that feeds the next.
+The pipeline has three stages. Each stage produces an output that feeds the next. Stages 2 and 3 run as Claude Code skills (cold Opus subagents do the model work); only Stage 1 is run by hand.
 
 ```
-Stage 1 — Registration
+Stage 1 — Registration                          (you, deterministic)
   corpus.py           Register PDF/TXT documents; set type, notes
 
-Stage 2 — Extraction (one document at a time)
-  extract.py          Strip document to plain text; generate extraction prompt
-  → Claude session    Upload prompt → download notes file
-  corpus.py           Auto-detects completed extractions on next status check
+Stage 2 — Extraction                            (/extract-corpus skill)
+  extract.py          Strip document to plain text  (driven by the skill)
+  cold Opus subagent  Read text → write batch_notes/notes_{doc}.md + provenance header
+  corpus.py           Auto-syncs status and provenance on next check
 
-Stage 3 — Skill building
-  skill.py            Generate bootstrap or refinement prompt
-  → Claude session    Upload prompt → download Claude's response
-  skill.py --apply    Write Claude's response to SKILL.md; inject overrides
+Stage 3 — Skill building                        (/build-skill skill)
+  skill.py            Assemble bootstrap/refinement prompt  (driven by the skill)
+  cold Opus subagent  Synthesize the complete SKILL.md from all the notes
+  skill.py --apply    Write skills/<profile>/SKILL.md; inject overrides; halt on conflict
 ```
+
+The older claude.ai copy-paste flow is gone; the `skill.py`/`extract.py` CLI commands still exist and are what the skills call under the hood (and remain usable directly if you prefer).
 
 **To check where you left off:**
 ```bash
 python corpus.py
 ```
-This prints the status of every registered document — which are extracted, which have notes, which have been incorporated into `SKILL.md`.
+This prints the status of every registered document — which are extracted, which model produced the notes, and which have been incorporated into the skill.
 
 ---
 
