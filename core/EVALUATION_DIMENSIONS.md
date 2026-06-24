@@ -15,6 +15,10 @@ After all batches are processed, a synthesis session collapses per-batch observa
 
 **All documents contribute evenly.** There is no weighting system — no token, type, or per-document weight is applied. A pattern is strong because it recurs consistently across documents, not because any document was assigned more weight. Register documents with `corpus.py`, extract each with `extract.py`, then synthesize with `skill.py`. Token counts are recorded only as informational corpus-size metadata.
 
+**First-author treatment.** Every registered document is read as the author's own first-author voice in full, regardless of co-authorship. Disentangling which sentences a co-author wrote is unfalsifiable from the text and injects noise as if it were caution; extraction does not attempt it. The curation decision — *is this document representative of my voice?* — is made once, at registration, by choosing what to register. If a document is in the corpus, all of its prose counts.
+
+**Evidence discipline — quotes in notes, never in the skill.** Every observation in a batch-notes file must be anchored by a **verbatim quote** from the source document. If a claim cannot be quoted, it is impression, not evidence, and is dropped. This makes each observation falsifiable against the source. The asymmetry matters: quotes belong **only in the notes**, which are never loaded at generation time. Synthesis distills the quoted evidence into a *described pattern* and must **not** copy verbatim corpus quotes into the `SKILL.md` — a skill is a live instruction, and any specimen sentence in it becomes a template the model oversamples, surfacing one cherry-picked example far above its natural frequency. The skill describes how the author writes; it does not carry samples of what they wrote.
+
 **Accepted input formats:** PDF (`.pdf`) for all document types except technical email. Plaintext (`.txt`) for technical email, organized by thematic grouping (see Document Type Classification below).
 
 ---
@@ -37,9 +41,9 @@ This spectrum has a practical implication: a small corpus of technical emails an
 
 ### Document types
 
-**Journal paper** — peer-reviewed empirical or review article. Heavily constrained by IMRaD conventions and journal style. Only upload papers where you have clear first-author editorial control. Co-authored papers where you wrote specific sections may be included; note the co-authorship so extraction can flag any sections that read as another author's voice.
+**Journal paper** — peer-reviewed empirical or review article. Heavily constrained by IMRaD conventions and journal style. Only register papers whose prose is representative of your voice — typically those where you had clear first-author editorial control. Once registered, **all of a document's text is treated as your own first-author voice** (see "First-author treatment" below); the curation decision happens at registration, not during extraction.
 
-**Proposal** — grant application narrative (specific aims, significance, innovation, approach, or equivalent). Discretionary structure with required advocacy register. High diagnostic value for epistemic stance, argumentation structure, and register modulation. Only upload proposals where you were PI or lead writer.
+**Proposal** — grant application narrative (specific aims, significance, innovation, approach, or equivalent). Discretionary structure with required advocacy register. High diagnostic value for epistemic stance, argumentation structure, and register modulation. Only register proposals where you were PI or lead writer.
 
 **Research statement** — career narrative document (for job applications, tenure, fellowship applications). Writer narrates their own intellectual trajectory with minimal genre scaffolding. High diagnostic value for semantic style and argumentation structure. Often the single highest-signal document in a corpus.
 
@@ -154,7 +158,7 @@ Chronological spread matters. If voice evolution over time is a concern, prefer 
 - **Section level:** Is there a characteristic build structure — broad framing → specific claim → evidence → interpretation → implication? Or does the writer invert this?
 - How does the writer handle list structures — do they appear frequently, sparingly, or only for specific rhetorical purposes?
 
-**Failure mode:** Paragraph length and list usage vary heavily by journal conventions and co-author influence. Weight patterns that persist across venues more heavily than those that appear in only one publication context.
+**Failure mode:** Paragraph length and list usage vary heavily by journal conventions. Weight patterns that persist across venues more heavily than those that appear in only one publication context.
 
 ---
 
@@ -214,7 +218,7 @@ Chronological spread matters. If voice evolution over time is a concern, prefer 
 - How are numerical results reported — with explicit uncertainty, with comparative framing, with physical interpretation immediately attached?
 - Is there characteristic use of order-of-magnitude reasoning or limiting-case analysis in the prose?
 
-**Failure mode:** Figure citation style is often imposed by journal or co-author convention. Distinguish the writer's habitual pattern from venue-specific formatting requirements by looking for consistency across multiple publication venues.
+**Failure mode:** Figure citation style is often imposed by journal formatting convention. Distinguish the writer's habitual pattern from venue-specific formatting requirements by looking for consistency across multiple publication venues.
 
 ---
 
@@ -243,5 +247,13 @@ After batch extraction, observations across dimensions should be cross-checked f
 - **Corpus skew:** Check whether a strong observation is supported across multiple document types or appears only in one. An observation that appears only in proposals may be proposal-register behavior, not invariant voice. Flag it as type-specific rather than discarding it — type-specific patterns are still useful for the corresponding output context
 - **Weight:** Not all dimensions will be equally diagnostic for all writers. A final SKILL.md should foreground the 3–4 dimensions with the strongest signal for this particular writer, not treat all nine as equal
 - **Register modulation (Dimension 9):** Assess this dimension last, by comparing observations across document types. Describe how the writer's voice shifts across contexts, what invariants survive all registers, and which dimensions are most vs. least stable across the corpus
+
+### Out-of-register documents: validation, not source (design note)
+
+A purpose-specific profile (e.g. `paper`) draws its skill from documents *in its target register* — the paper profile synthesizes from journal papers and proposals. Lower-scaffold documents (emails, statements) carry more raw voice signal, but they also carry register-bound traits — candor, brevity, informality — that must **not** bleed into a manuscript skill.
+
+The resolution is a directional, asymmetric rule. A low-scaffold document can **confirm** that a pattern already observed in the target-register documents is a *deep voice invariant* rather than a genre artifact (the trait persists even when scaffolding drops away). It can never **introduce** a trait into the skill on its own. In short: out-of-register documents are a *validation set*, not a *source set* — they raise or lower confidence in traits the target register already shows, and traits appearing only in the out-of-register documents are discarded for that profile.
+
+This is currently realized by **exclusion**: `corpus_types` keeps out-of-register documents out of synthesis entirely (bleed is impossible because they are absent). A future `validation_types` mechanism could pull them in as cross-check-only evidence under the rule above. The principle holds either way; only the mechanism differs.
 
 The goal of synthesis is a SKILL.md that a stranger could read and produce writing that a colleague of the author would recognize — not as imitation, but as sounding like it came from the same mind.

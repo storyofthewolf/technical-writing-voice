@@ -78,7 +78,7 @@ A contradiction is NOT genuine (resolve silently) when:
 1. The existing pattern is wrong or overstated — the new document corrects it
 2. This is voice evolution — the writer's habits changed around [approximate period]
 3. This is register variation — the conflict dissolves when document types are separated
-4. The new document has co-author influence that suppresses this writer's natural pattern
+4. This is a single-document outlier — the new document diverges but the prior corpus is consistent
 
 **My assessment:** [which explanation is most likely and why]
 **My recommendation:** [what you would do if you were allowed to proceed]

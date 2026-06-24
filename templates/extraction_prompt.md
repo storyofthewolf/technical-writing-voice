@@ -1,9 +1,16 @@
 # extraction_prompt.md
 
-You are analyzing a document written by a single author to extract observations
-about their distinctive technical writing voice. Your output will be used either
-to bootstrap a SKILL.md (if this is an early document) or to refine an existing
-one (if SKILL.md already exists).
+You are analyzing a document to extract observations about the author's
+distinctive technical writing voice. Your output will be used either to bootstrap
+a SKILL.md (if this is an early document) or to refine an existing one (if
+SKILL.md already exists).
+
+**Treat all text in this document as the author's own first-author voice**,
+regardless of any co-authorship. The corpus is curated at registration: a
+document is only registered if its prose is representative of this author. Do not
+attempt to guess which passages a co-author may have written — that judgment is
+unfalsifiable from the text and produces noise. Read every sentence as the
+author's.
 
 The document text is embedded in the prompt above this instruction block.
 
@@ -18,6 +25,13 @@ Produce structured observations per dimension following the output format.
 It must describe something that a different competent writer in the same field would
 not necessarily do. Generic observations ("uses precise language," "structures
 arguments logically") have zero diagnostic value and must be discarded.
+
+**Every observation MUST be backed by a verbatim quote** from the document — the
+exact words that exhibit the pattern, in quotation marks. If you cannot quote the
+text that demonstrates a claim, you do not have evidence for it: drop the claim.
+The quotes are the falsifiability check; they let a reader verify each observation
+against the source. (They live only in these notes — synthesis distills them into
+described patterns and does not copy them into the skill, so quote freely here.)
 
 **What you are NOT doing:**
 - Describing whether this is good writing
@@ -71,8 +85,8 @@ observations in actual language rather than impression.
 #### D1 — Syntactic Style
 **Signal:** [HIGH / MEDIUM / LOW / ABSENT]
 
-[Your observations. Each one specific and falsifiable, with a brief textual example.
-If absent, say so in one sentence. No padding.]
+[Your observations. Each one specific and falsifiable, and each anchored by a
+verbatim quote from the document. If absent, say so in one sentence. No padding.]
 
 **Type-specific?** [Yes/No/Unclear — and why]
 
@@ -162,5 +176,6 @@ this writer from peers in the same field. One sentence each.]
 **Dimensions with no useful signal:** [list and briefly why]
 
 **Flags for synthesis:** [anything the synthesis or refinement session should know —
-suspected co-author influence, unusual register for the document type, limited
-signal due to document length, anything that affects how these notes should be read]
+unusual register for the document type, limited signal due to document length,
+anything that affects how these notes should be read. Do NOT flag suspected
+co-author influence: all registered text is treated as the author's own voice.]

@@ -90,7 +90,9 @@ or described differently across documents. For each divergence determine:
 - Is this register variation by document type? (expected — note as type-specific delta)
 - Is this temporal voice evolution? (note approximate period)
 - Is this a single-document outlier? (flag or discard)
-- Is this a co-author influence artifact? (flag from extraction notes, then discard)
+
+(All registered text is treated as the author's own first-author voice; there are
+no co-author artifacts to attribute or discard.)
 
 **Generic observations** — patterns flagged as discarded in batch notes. Cross-check:
 if a pattern was discarded in one batch but reported as HIGH signal in another, do not
@@ -183,6 +185,12 @@ Using SKILL_TEMPLATE.md as your exact output format, produce the completed SKILL
   D9 Register Modulation is always last regardless of its priority rank.
 - Every observation must be specific and falsifiable. If a dimension did not yield
   strong signal, say so honestly in one sentence rather than writing generic content.
+- **Do not copy verbatim quotes from the corpus into the skill.** The batch notes
+  quote the source as evidence; distill those quotes into described patterns. A
+  specimen sentence in a loaded skill becomes a template the model oversamples,
+  surfacing one cherry-picked example far above its natural frequency. Describe how
+  the writer writes; never paste a sentence they wrote. Short illustrative fragments
+  you author yourself to clarify a pattern are fine; lifted corpus sentences are not.
 - The register modulation per-context deltas section covers only document types
   present in the corpus. Omit types with no evidence.
 - Populate the corpus metadata block from the metadata provided at the top of this

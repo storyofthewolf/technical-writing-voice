@@ -67,9 +67,9 @@ Work through these steps in order. Do not emit the SKILL.md until all are done.
 
 Read every notes section. Note which dimensions are reported HIGH consistently
 across documents, which are weak, and collect every "Flags for synthesis"
-entry (co-author contamination warnings especially — down-weight sections
-flagged as co-author-influenced). Produce a short internal audit; you will
-compress it into the synthesis-notes block at the end.
+entry. All registered text is the author's own first-author voice — there are no
+co-author warnings to weigh, and you must not invent any. Produce a short
+internal audit; you will compress it into the synthesis-notes block at the end.
 
 ### Step 2 — Resolve observations per dimension
 
@@ -134,6 +134,14 @@ Using SKILL_TEMPLATE_PAPER.md as the exact format:
 - Order dimension sections by signal-strength rank, highest first.
 - Every retained observation must be specific and falsifiable. If you cannot
   make it specific, cut it.
+- **Do not copy verbatim quotes from the corpus into the skill.** The batch notes
+  quote the source as evidence; your job is to distill those quotes into a
+  *described pattern*, not to reproduce them. A specimen sentence placed in a
+  loaded skill becomes a template the model oversamples, surfacing one cherry-picked
+  example far above its natural frequency. Describe how the author writes (e.g.
+  "opens results paragraphs with the mechanism, then the measured value"); never
+  paste a sentence they wrote. Short illustrative *fragments* you author yourself
+  to clarify a pattern are fine; lifted corpus sentences are not.
 - **Honor the token budget** stated in the profile directives. If you are over,
   cut MEDIUM/LOW content and tighten prose — do not cut HIGH observations.
 - Populate the corpus metadata block from the metadata at the top of the
