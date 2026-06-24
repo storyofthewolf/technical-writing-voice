@@ -7,6 +7,8 @@ prompts/
  
 # Your personal voice model — not part of the pipeline source
 SKILL.md
+# Derived browser/paste test copies of a built skill — also generated output
+*_browser.md
  
 # Auto-generated working directories
 batch_notes/
