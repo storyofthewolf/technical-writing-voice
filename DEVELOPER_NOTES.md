@@ -49,13 +49,13 @@ python overrides.py add "instruction text" [--category CATEGORY]
 python overrides.py remove OVERRIDE_ID
 ```
 
-### archive.py — snapshot / reset
+### archive.py — snapshot / reset (profile-aware)
 ```
-python archive.py [--label TEXT]                   # snapshot only
-python archive.py --reset soft                     # snapshot + delete SKILL.md + reset refined flags
-python archive.py --reset full                     # snapshot + wipe SKILL.md and batch_notes
+python archive.py [--profile NAME] [--label TEXT]  # snapshot only
+python archive.py [--profile NAME] --reset soft    # snapshot + delete profile SKILL.md + reset its refined flags
+python archive.py [--profile NAME] --reset full    # snapshot + wipe profile SKILL.md and batch_notes
 ```
-Never touches `overrides.yaml`.
+Resolves the profile via `skill.py`'s `load_profile` (default: `default_profile`). Snapshots the profile's `output` skill as `SKILL_<profile>.md`, plus `batch_notes/`, `prompts/`, `corpus_state.yaml`. Reset is scoped to `refined_into_skill_<profile>` (reuses `is_refined`/`set_refined`). Never touches the root `SKILL.md` or `overrides.yaml`.
 
 ---
 

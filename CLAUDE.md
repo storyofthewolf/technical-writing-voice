@@ -16,7 +16,7 @@ See `README.md` for full workflow documentation.
 | `extract.py` | Strip PDFs to plain text (`stripped_text/`), generate extraction prompts (`batch_notes/prompt_*.md`). |
 | `skill.py` | Profile-aware. Generate bootstrap, refinement, and revision prompts; apply Claude's responses to the selected profile's `SKILL.md`; inject `## Manual Overrides` section. Reads `profiles.yaml`. |
 | `overrides.py` | Manage `overrides.yaml` via `list` / `add` / `remove` subcommands. |
-| `archive.py` | Snapshot pipeline state to `archive/run_TIMESTAMP[_label]/`; optional `--reset soft` or `--reset full`. |
+| `archive.py` | Profile-aware. Snapshot the selected profile's state to `archive/run_TIMESTAMP_<profile>[_label]/`; optional `--reset soft` or `--reset full` scoped to that profile. |
 
 ---
 
@@ -69,7 +69,7 @@ python skill.py --output FILE                                 # write prompt to 
 
 **Auto-mark on status.** `corpus.py`'s `cmd_status()` calls `_auto_mark_done()` first. It scans unprocessed documents, checks whether `batch_notes/notes_{doc_id}.md` exists, and marks any found as `processed=True` with `batch_notes_file` and `processed_date` set. No manual `--mark-done` command needed.
 
-**Archive never touches overrides.** `archive.py` copies `SKILL.md`, `batch_notes/`, `prompts/`, and `corpus_state.yaml`. It never reads, copies, or modifies `overrides.yaml`. Overrides persist across all reset modes.
+**Archive is profile-aware and never touches overrides.** `archive.py` resolves a profile via `skill.py`'s `load_profile` (default `default_profile`) and copies that profile's `output` skill (saved as `SKILL_<profile>.md`), `batch_notes/`, `prompts/`, and `corpus_state.yaml`. Reset is scoped to the profile's `refined_into_skill_<profile>` flags (it reuses `is_refined`/`set_refined`). It never reads, copies, or modifies `overrides.yaml`, and never archives, resets, or deletes the orphaned root `SKILL.md`. Overrides persist across all reset modes.
 
 **Conflict detection stops the apply.** If Claude's response contains `## CONFLICT REVIEW`, `skill.py --apply` prints the conflict and exits without writing the profile's `SKILL.md` or updating state. Conflict detection is skipped for `--revision` responses.
 

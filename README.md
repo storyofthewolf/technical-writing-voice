@@ -377,29 +377,31 @@ Overrides appear in `SKILL.md` as a `## Manual Overrides` section at the end of 
 
 ### Archiving and resetting
 
-Use `archive.py` to snapshot the full pipeline state before a reset or a major change. Archives capture `SKILL.md`, `batch_notes/`, `prompts/`, and `corpus_state.yaml`. `overrides.yaml` is never archived or reset.
+Use `archive.py` to snapshot a profile's pipeline state before a reset or a major change. It is profile-aware (`--profile NAME`, default: `default_profile`). Archives capture the profile's built skill (its `output`, e.g. `skills/paper/SKILL.md`, saved as `SKILL_<profile>.md`), plus the shared `batch_notes/`, `prompts/`, and `corpus_state.yaml`. The orphaned root `SKILL.md` and `overrides.yaml` are never archived or reset.
 
 ```bash
 # Snapshot only (safe checkpoint before any change)
 python archive.py
 
-# Snapshot with a descriptive label
-python archive.py --label before_new_docs
+# Snapshot a specific profile with a descriptive label
+python archive.py --profile paper --label before_new_docs
 
-# Soft reset: delete SKILL.md, reset refined flags, keep batch notes
-# Use when: re-synthesizing SKILL.md after editing templates or switching LLMs
+# Soft reset: delete the profile's SKILL.md, reset its refined flags, keep batch notes
+# Use when: re-synthesizing the skill after editing templates or switching LLMs
 python archive.py --reset soft
 
-# Full reset: delete SKILL.md and all batch notes, reset all state flags
+# Full reset: delete the profile's SKILL.md and all batch notes, reset all state flags
 # Use when: starting the entire pipeline from scratch
 python archive.py --reset full --label clean_slate
 ```
 
-**Soft reset** preserves all extraction work. After a soft reset, run `python skill.py --bootstrap` to regenerate `SKILL.md` from the existing notes.
+Reset is scoped to the selected profile — it touches only that profile's `refined_into_skill_<profile>` flags and its own `output` skill, never another profile's.
+
+**Soft reset** preserves all extraction work. After a soft reset, run `python skill.py --bootstrap` to regenerate the profile's skill from the existing notes.
 
 **Full reset** wipes everything except registered document paths and `overrides.yaml`. After a full reset, re-run Stage 2 (extraction) for all documents before bootstrapping.
 
-Archives are saved to `archive/run_YYYY-MM-DD_HHMMSS[_label]/` and are not tracked in git.
+Archives are saved to `archive/run_YYYY-MM-DD_HHMMSS_<profile>[_label]/` and are not tracked in git.
 
 ---
 
@@ -518,10 +520,10 @@ python overrides.py remove OVERRIDE_ID
 ### archive.py
 
 ```
-python archive.py                                       # snapshot only
-python archive.py --label TEXT                          # snapshot with label
-python archive.py --reset soft                          # snapshot + delete SKILL.md + reset refined flags
-python archive.py --reset full                          # snapshot + full wipe of SKILL.md and batch_notes
+python archive.py [--profile NAME]                     # snapshot only
+python archive.py [--profile NAME] --label TEXT         # snapshot with label
+python archive.py [--profile NAME] --reset soft         # snapshot + delete profile SKILL.md + reset its refined flags
+python archive.py [--profile NAME] --reset full         # snapshot + full wipe of profile SKILL.md and batch_notes
 ```
 
 ---
