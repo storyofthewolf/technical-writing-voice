@@ -103,10 +103,11 @@ conflicts in one context).
   prose_tokens: 40321                  # informational corpus size; NOT a weight
   processed: true
   batch_notes_file: batch_notes/notes_wolf2025psj.md
-  refined_into_skill: true             # legacy flag; profiles use refined_into_skill_<profile>
+  refined_into_skill_paper: true       # per-profile; one flag per built profile (skill.py --apply)
   added: '2026-04-18'
   notes: ''
   processed_date: '2026-04-23'         # when corpus.py first detected the notes file
+  refined_date_paper: '2026-04-23'     # per-profile; written alongside the flag
   extraction_model: claude-sonnet-4-6  # synced from notes header
   extracted_date: '2026-04-23'         # synced from notes header
 ```

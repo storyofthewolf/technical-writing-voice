@@ -184,7 +184,6 @@ def cmd_add(paths, state, doc_type=None, notes=""):
             "prose_tokens": tokens,
             "processed": False,
             "batch_notes_file": None,
-            "refined_into_skill": False,
             "added": datetime.now().strftime("%Y-%m-%d"),
             "notes": notes,
         }
@@ -313,6 +312,21 @@ def cmd_pending(state, types=None):
         print(d["id"])
 
 
+def _discovered_profiles(docs) -> list[str]:
+    """Profile names inferred from per-profile refinement flags present in the
+    corpus data (skill.py writes `refined_into_skill_<profile>`). This keeps
+    corpus.py decoupled from profiles.yaml — it reports on whatever profiles the
+    documents have actually been built into, in first-seen order."""
+    seen = []
+    for d in docs:
+        for key in d:
+            if key.startswith("refined_into_skill_"):
+                name = key[len("refined_into_skill_"):]
+                if name not in seen:
+                    seen.append(name)
+    return seen
+
+
 def cmd_status(state):
     _auto_mark_done(state)
     docs = state["documents"]
@@ -323,13 +337,18 @@ def cmd_status(state):
 
     processed = [d for d in docs if d.get("processed")]
     unprocessed = [d for d in docs if not d.get("processed")]
-    refined = [d for d in docs if d.get("refined_into_skill")]
+    profiles = _discovered_profiles(docs)
 
     print("=" * 72)
     print("CORPUS STATUS")
     print(f"  Total documents   : {len(docs)}")
     print(f"  Processed         : {len(processed)}")
-    print(f"  Incorporated      : {len(refined)}  (refined into SKILL.md)")
+    for prof in profiles:
+        flag = f"refined_into_skill_{prof}"
+        n = sum(1 for d in docs if d.get(flag))
+        print(f"  Incorporated [{prof}] : {n}  (built into the {prof} skill)")
+    if not profiles:
+        print("  Incorporated      : 0  (no profile built yet)")
     print(f"  Unprocessed       : {len(unprocessed)}")
     print(f"  Raw tokens        : {sum(d.get('prose_tokens', 0) for d in processed):,}  (processed docs; informational)")
     print("=" * 72)
@@ -349,7 +368,11 @@ def cmd_status(state):
     if processed:
         print("\nPROCESSED")
         for d in processed:
-            refined_flag = " [in SKILL.md]" if d.get("refined_into_skill") else " [pending skill.py]"
+            if profiles:
+                built = [p for p in profiles if d.get(f"refined_into_skill_{p}")]
+                refined_flag = f"  [in: {', '.join(built)}]" if built else "  [pending skill.py]"
+            else:
+                refined_flag = "  [pending skill.py]"
             notes_file = d.get("batch_notes_file") or "?"
             model = _short_model(d.get("extraction_model"))
             date = d.get("extracted_date") or d.get("processed_date") or "?"
