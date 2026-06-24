@@ -42,7 +42,10 @@ import fitz
 import tiktoken
 import yaml
 
-STATE_FILE = Path("corpus_state.yaml")
+# Resolve paths from the script's location, not the caller's cwd, so corpus.py
+# works when invoked from any directory.
+HERE = Path(__file__).parent
+STATE_FILE = HERE / "corpus_state.yaml"
 ENCODING = tiktoken.get_encoding("cl100k_base")
 
 VALID_TYPES = [
@@ -226,7 +229,7 @@ def cmd_set_notes(doc_id, notes, state):
     print("Run 'python corpus.py' to see registered IDs.")
 
 
-BATCH_NOTES_DIR = Path("batch_notes")
+BATCH_NOTES_DIR = HERE / "batch_notes"
 
 
 def _parse_notes_header(path: Path) -> dict:

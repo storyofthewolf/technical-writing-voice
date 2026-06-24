@@ -45,11 +45,11 @@ done for another.
 ## Contamination is the organizing constraint
 
 The single most important design force is **keeping the model's reads clean**. A
-voice skill that already exists (`eric-wolf-paper-voice`) will, if loaded in
+voice skill that already exists (e.g. `paper-voice`) will, if loaded in
 context during extraction or synthesis, cause the model to *echo the voice the
 skill already describes* instead of *observing it from the source*. This was
-observed in practice (TODO.md: the old `eric-wolf-voice` skill contaminated
-roughly half of extraction runs).
+observed in practice: an earlier general-purpose voice skill contaminated
+roughly half of extraction runs.
 
 The defense, used at both model stages, is the **cold subagent**: a subagent
 starts with a fresh context and does **not** inherit the parent conversation's

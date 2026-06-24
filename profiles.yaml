@@ -25,7 +25,7 @@ default_profile: paper
 profiles:
 
   paper:
-    skill_name: eric-wolf-paper-voice
+    skill_name: paper-voice
     purpose: >
       Formal journal-paper and proposal manuscript writing. Invoked by Claude
       Code when editing a GitHub-backed Overleaf project containing LaTeX, .bib,

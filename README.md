@@ -499,7 +499,7 @@ Defines each purpose-specific skill. Add an entry to create a new skill; no scri
 default_profile: paper
 profiles:
   paper:
-    skill_name: eric-wolf-paper-voice
+    skill_name: paper-voice
     purpose: Formal journal-paper and proposal manuscript writing ...
     corpus_types: [journal_paper, proposal]   # which docs feed this skill
     synthesis_template: templates/synthesis_paper.md

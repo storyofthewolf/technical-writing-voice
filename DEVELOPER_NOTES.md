@@ -128,7 +128,7 @@ model: claude-opus-4-8     # full model id; the skill passes the exact id it ran
 default_profile: paper
 profiles:
   paper:
-    skill_name: eric-wolf-paper-voice
+    skill_name: paper-voice
     purpose: >...                       # injected into the synthesis prompt
     corpus_types: [journal_paper, proposal]
     synthesis_template: templates/synthesis_paper.md

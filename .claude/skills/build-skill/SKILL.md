@@ -26,7 +26,7 @@ observations *against each other* across documents and resolve conflicts. So
 unlike extraction, it **cannot be sharded**: one subagent gets everything.
 
 It must still run **cold** (a subagent, not this conversation): if a voice skill
-such as `eric-wolf-paper-voice` is loaded in context during synthesis, the model
+such as `paper-voice` is loaded in context during synthesis, the model
 synthesizes partly from the skill it is supposed to rebuild instead of purely from
 the notes. A subagent starts fresh and does not inherit the parent's loaded
 skills. Never run the synthesis read in the main conversation.

@@ -173,7 +173,7 @@ Using SKILL_TEMPLATE.md as your exact output format, produce the completed SKILL
 - Remove all HTML comment blocks from the template. The final SKILL.md
   contains no instructions, only content.
 - The file begins with a YAML front matter block (between --- delimiters). Fill in:
-  - `name`: a lowercase hyphenated slug from the writer's name (e.g. `eric-wolf-voice`)
+  - `name`: a lowercase hyphenated slug for the skill (e.g. `paper-voice`)
   - `description`: replace [writer name] and [field] with the actual name and field
   - Do not alter any other part of the front matter block
 - Preserve the "Instructions for Claude" block verbatim, substituting the writer's

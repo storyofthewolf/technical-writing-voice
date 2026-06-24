@@ -19,7 +19,7 @@ response by hand. Now `extract.py` does the deterministic stripping and you
 
 The extraction read must happen in a **cold subagent context**, one per document:
 
-- **No voice skill loaded.** If `eric-wolf-paper-voice` (or any voice skill) is in
+- **No voice skill loaded.** If `paper-voice` (or any voice skill) is in
   context during extraction, it contaminates the read — the analysis starts
   echoing the voice the skill already described instead of observing it fresh.
   A subagent starts cold and does not inherit the parent's loaded skills.
