@@ -36,7 +36,7 @@ python corpus.py                                 # status check
 ```bash
 # 4. Deploy: copy the built skill into the repo where you actually write,
 #    so Claude Code loads it when you edit LaTeX.
-cp skills/paper/SKILL.md /path/to/overleaf-repo/.claude/skills/eric-wolf-paper-voice/SKILL.md
+cp skills/paper/SKILL.md /path/to/overleaf-repo/.claude/skills/paper-voice/SKILL.md
 ```
 
 **Returning after a break?** Run `python corpus.py` — it shows every document's status (extracted? which model? incorporated into the skill?). To add a manual editorial directive that survives every rebuild: `python overrides.py add "..."`.

@@ -88,7 +88,7 @@ The two model-driven stages run as project skills in `.claude/skills/` (tracked;
 
 **Provenance is automatic.** Each notes file's YAML header (`extracted`, `model`) is the source of truth; `corpus.py`'s `_auto_mark_done()` reads it back into `corpus_state.yaml` (`extraction_model`, `extracted_date`) on every status call and shows `[model, date]` in the PROCESSED listing. Headerless legacy notes show `unknown`.
 
-**Fine-tuning layer is deferred (not built).** A draft → critique-against-failure-modes → revise loop will eventually sit between synthesis and apply and take over override injection. Until then, override injection stays inside `skill.py --apply`. Do not treat fine-tuning as existing.
+**Fine-tuning layer is prioritized (not yet built).** A draft → critique-against-failure-modes → revise loop will sit between synthesis and apply and take over override injection, replacing the current static `## Manual Overrides` section in `skill.py --apply`. This is the author's chosen next-major-build (after the 14-doc paper-only baseline) because it addresses the observed problem (qualitative evaluation difficulty) rather than speculative defense (genre artifacts). The failure-mode rubric that feeds the critique step will be seeded from logged A/B test failures. Until built, override injection stays inside `skill.py --apply`.
 
 ## Current script inventory
 
@@ -104,4 +104,22 @@ The two model-driven stages run as project skills in `.claude/skills/` (tracked;
 
 ## Session handoff
 
-The pipeline runs end-to-end in Claude Code (no claude.ai round-trip). Branch `paper-profile-refactor` holds the refactor. **Open threads:** (1) `skills/paper/SKILL.md` is currently a hand-drafted skill, not a pipeline bootstrap — run `/build-skill` to produce the canonical version under even-contribution synthesis; (2) no tooling yet for **deploying** the built skill into the author's Overleaf repo's `.claude/skills/` (manual `cp` for now); (3) the **fine-tuning layer** is designed-but-unbuilt, pending observation of how the raw skill performs.
+**Completed this session (2026-06-24):**
+- Refactored legacy single-SKILL.md mode → per-profile architecture (merged to main)
+- Made all scripts executable; fixed `corpus.py` cwd-relative path bug
+- Renamed skill from `eric-wolf-paper-voice` → generic `paper-voice`
+- Made `archive.py` and `corpus.py` profile-aware to match refactor
+- Hardened extraction framework: first-author-always (no co-author untangling), quote-per-observation discipline (falsifiable notes, no specimen quotes in skills)
+- Built a 5-doc paper-profile baseline skill via `/build-skill` under the hardened framework
+- Documented the out-of-register-documents principle; **declined to build validation corpus** (too complex, offense beats defense)
+- **Prioritized fine-tuning layer** as next major build over conflating corpus types
+
+**Next work (author's chosen sequence):**
+1. Test-drive the baseline `paper-voice` skill (built, local, git-ignored)
+2. Build the full ~14-doc paper-only bootstrap via `/extract-corpus` + `/build-skill paper` (under hardened framework)
+3. Write explicit failure-mode rubric seeded from logged A/B failures (genericity, adverb overuse, "Note that" openers, em-dashes, drifted terminology)
+4. Build the draft→critique→revise fine-tuning loop against that rubric (will eventually take over override injection from `skill.py --apply`)
+
+**Open threads:**
+- No tooling yet for **deploying** the built skill into Overleaf repo's `.claude/skills/` (manual `cp` for now)
+- Fine-tuning layer (`draft → critique → revise`) is designed but unbuilt; will be prioritized after 14-doc baseline informs the failure-mode rubric
