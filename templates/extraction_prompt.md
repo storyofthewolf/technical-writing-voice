@@ -36,10 +36,27 @@ voice-invariant (would appear across all this writer's output).
 
 ## Output format
 
-Produce your output as a downloadable markdown artifact named as specified in the
-`output_file` field of the prompt front matter (e.g. `notes_DOCID.md`).
-No YAML, no structured schemas. Be direct and specific. Use quotes from the text
-as evidence — brief ones, to anchor observations in actual language rather than impression.
+Produce one notes file named as specified in the `output_file` field of the
+prompt front matter (e.g. `notes_DOCID.md`). In Claude Code, write it directly to
+`batch_notes/notes_DOCID.md`; in a claude.ai session, return it as a downloadable
+markdown artifact with that name.
+
+The file MUST begin with a YAML front-matter header recording how the extraction
+was made — this is the provenance the pipeline reads back to populate corpus
+status. Fill it in exactly:
+
+```
+---
+doc_id: [the document id]
+extracted: [today's date, YYYY-MM-DD]
+model: [the exact model id you are running as, e.g. claude-opus-4-8]
+---
+```
+
+The `model` value must be your own exact model id, not a guess or a family name.
+After the header, the body is prose — no other YAML, no structured schemas. Be
+direct and specific. Use brief quotes from the text as evidence, to anchor
+observations in actual language rather than impression.
 
 ---
 

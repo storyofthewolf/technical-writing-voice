@@ -230,22 +230,87 @@ def cmd_set_notes(doc_id, notes, state):
 BATCH_NOTES_DIR = Path("batch_notes")
 
 
+def _parse_notes_header(path: Path) -> dict:
+    """Read the YAML front-matter header from a notes_{doc}.md file.
+
+    Extraction (the /extract-corpus skill or a manual claude.ai run) stamps the
+    notes file with how it was made:
+
+        ---
+        doc_id: wolf2025psj
+        extracted: 2026-06-23
+        model: claude-opus-4-8
+        ---
+
+    Returns {} for headerless notes (e.g. legacy files); the caller treats a
+    missing model as 'unknown'. Never raises — a malformed header is ignored.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    if not text.startswith("---"):
+        return {}
+    end = text.find("\n---", 3)
+    if end == -1:
+        return {}
+    block = text[3:end]
+    try:
+        meta = yaml.safe_load(block)
+    except yaml.YAMLError:
+        return {}
+    return meta if isinstance(meta, dict) else {}
+
+
 def _auto_mark_done(state: dict) -> None:
+    """Detect completed extractions and sync extraction metadata from the notes
+    file header. Runs on every status call so headers stay authoritative even
+    for already-processed documents (a re-extraction with a new model updates
+    the recorded model on the next status check)."""
     today = datetime.now().strftime("%Y-%m-%d")
     changed = False
     for doc in state["documents"]:
-        if doc.get("processed"):
-            continue
         doc_id = doc["id"]
         candidate = BATCH_NOTES_DIR / f"notes_{doc_id}.md"
-        if candidate.exists():
+        if not candidate.exists():
+            continue
+
+        # Mark processed the first time the notes file appears.
+        if not doc.get("processed"):
             doc["processed"] = True
             doc["batch_notes_file"] = str(candidate)
             doc["processed_date"] = today
             changed = True
             print(f"  [auto-marked done] {doc_id} -> {candidate}")
+
+        # Sync extraction provenance from the notes header (source of truth).
+        header = _parse_notes_header(candidate)
+        hdr_model = header.get("model")
+        hdr_date = header.get("extracted")
+        if hdr_model and doc.get("extraction_model") != hdr_model:
+            doc["extraction_model"] = hdr_model
+            changed = True
+        if hdr_date:
+            hdr_date = str(hdr_date)
+            if doc.get("extracted_date") != hdr_date:
+                doc["extracted_date"] = hdr_date
+                changed = True
     if changed:
         save_state(state)
+
+
+def cmd_pending(state, types=None):
+    """Emit the IDs of documents needing extraction, one per line, for the
+    /extract-corpus skill to consume. A document is pending if it has no
+    notes_{doc}.md yet (not processed). Optionally filter to one or more
+    document types (the skill resolves a profile's corpus_types and passes them
+    here, keeping corpus.py decoupled from profiles.yaml)."""
+    _auto_mark_done(state)
+    pending = [d for d in state["documents"] if not d.get("processed")]
+    if types:
+        pending = [d for d in pending if d.get("type") in types]
+    for d in pending:
+        print(d["id"])
 
 
 def cmd_status(state):
@@ -284,11 +349,27 @@ def cmd_status(state):
     if processed:
         print("\nPROCESSED")
         for d in processed:
-            refined_flag = " [in SKILL.md]" if d.get("refined_into_skill") else " [pending refine.py]"
+            refined_flag = " [in SKILL.md]" if d.get("refined_into_skill") else " [pending skill.py]"
             notes_file = d.get("batch_notes_file") or "?"
-            print(f"  {d['id']:<40} -> {notes_file}{refined_flag}")
+            model = _short_model(d.get("extraction_model"))
+            date = d.get("extracted_date") or d.get("processed_date") or "?"
+            provenance = f"  [{model}, {date}]"
+            print(f"  {d['id']:<40} -> {notes_file}{provenance}{refined_flag}")
 
     print()
+
+
+def _short_model(model_id) -> str:
+    """Abbreviate a full model id for display (claude-opus-4-8 -> opus-4-8).
+    Headerless / legacy notes have no recorded model -> 'unknown'."""
+    if not model_id:
+        return "model: unknown"
+    m = str(model_id)
+    for family in ("opus", "sonnet", "haiku", "fable"):
+        if family in m:
+            idx = m.find(family)
+            return m[idx:]
+    return m
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +401,11 @@ Examples:
                         help="Update document type for an existing document")
     parser.add_argument("--set-notes", nargs=2, metavar=("DOC_ID", "TEXT"),
                         help="Update notes for an existing document")
+    parser.add_argument("--pending", action="store_true",
+                        help="Print IDs of documents needing extraction, one per "
+                             "line (for the /extract-corpus skill)")
+    parser.add_argument("--pending-types", nargs="+", metavar="TYPE",
+                        help="With --pending: restrict to these document types")
 
     args = parser.parse_args()
     state = load_state()
@@ -332,6 +418,8 @@ Examples:
             doc_type=doc_type,
             notes=args.notes or "",
         )
+    elif args.pending:
+        cmd_pending(state, types=args.pending_types)
     elif args.set_type:
         cmd_set_type(args.set_type[0], args.set_type[1], state)
     elif args.set_notes:
