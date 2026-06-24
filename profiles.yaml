@@ -1,0 +1,49 @@
+# profiles.yaml
+# ---------------------------------------------------------------------------
+# Purpose-specific voice skills built from the same corpus of batch notes.
+#
+# Each profile is a narrow SKILL.md aimed at one writing context, rather than
+# one monolithic general-purpose voice model. skill.py reads this file and uses
+# the selected profile to:
+#   - filter the corpus to the relevant document types  (corpus_types)
+#   - pick the synthesis instructions                    (synthesis_template)
+#   - decide where the built skill is written            (output)
+#   - set the skill's frontmatter name                   (skill_name)
+#   - communicate a length budget to Claude              (target_tokens)
+#   - tell Claude how to handle LaTeX/.bib mechanics      (latex_policy)
+#
+# Add a new profile (e.g. `email`) as a new entry here — no script changes
+# needed. The per-profile refinement flag in corpus_state.yaml is
+# `refined_into_skill_<profile>`, so building one skill never marks documents
+# as incorporated into another.
+#
+# `default_profile` is used when --profile is omitted on the skill.py CLI.
+# ---------------------------------------------------------------------------
+
+default_profile: paper
+
+profiles:
+
+  paper:
+    skill_name: eric-wolf-paper-voice
+    purpose: >
+      Formal journal-paper and proposal manuscript writing. Invoked by Claude
+      Code when editing a GitHub-backed Overleaf project containing LaTeX, .bib,
+      and figure files. The target task is drafting and editing manuscript prose
+      and structuring the argument — not informal correspondence.
+    # Source corpus: the formal, manuscript register only. Emails, letters, and
+    # statements are deliberately excluded — that "personal touch" register is
+    # not the target and is better left to the author.
+    corpus_types:
+      - journal_paper
+      - proposal
+    synthesis_template: templates/synthesis_paper.md
+    output: skills/paper/SKILL.md
+    # Slim target. The general-purpose SKILL.md ran ~7000 tokens; this profile
+    # aims much lower so it is cheap to load on every Claude Code edit.
+    target_tokens: 3000
+    # defer: do NOT prescribe LaTeX or .bib syntax conventions in the skill.
+    # Claude applies its own standard best practices for \citep/\citet, math
+    # environments, captions, sectioning, etc. The skill governs PROSE VOICE and
+    # ARGUMENT STRUCTURE, not markup mechanics.
+    latex_policy: defer
