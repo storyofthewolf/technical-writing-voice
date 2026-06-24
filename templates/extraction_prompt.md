@@ -145,5 +145,5 @@ this writer from peers in the same field. One sentence each.]
 **Dimensions with no useful signal:** [list and briefly why]
 
 **Flags for synthesis:** [anything the synthesis or refinement session should know —
-suspected co-author influence, unusual register for the document type, low confidence
-due to document length, anything that affects how much weight to put on these notes]
+suspected co-author influence, unusual register for the document type, limited
+signal due to document length, anything that affects how these notes should be read]

@@ -10,7 +10,7 @@
 Triggered when uploaded file front matter contains `action: extract`
 
 1. Read `output_file` from front matter — this is the artifact filename (e.g. `notes_smith_2019.md`)
-2. Read `doc_id`, `doc_type`, `confidence` from front matter
+2. Read `doc_id`, `doc_type` from front matter
 3. The file contains the stripped document text followed by the extraction prompt instructions
 4. Run the extraction: analyze the document text against all nine dimensions per the instructions
 5. Produce the batch notes as a downloadable markdown artifact. The artifact  filename must be exactly the value of `output_file` from the front matter (e.g. `notes_wolf2025psj.md`). Use the Artifacts feature — do not print the content inline in the chat.
@@ -32,8 +32,8 @@ Triggered when uploaded file front matter contains `action: bootstrap`
 Triggered when uploaded file front matter contains `action: refine`
 
 1. `output_file` will be `SKILL.md`
-2. The file contains the current SKILL.md, new batch notes with influence weights,
-   and refinement instructions
+2. The file contains the current SKILL.md, new batch notes (all documents
+   contribute evenly — no influence weights), and refinement instructions
 3. Run the refinement per the instructions embedded in the file
 4. If no conflicts: produce updated SKILL.md as a downloadable markdown artifact named `SKILL.md`
 5. If conflict detected: produce a downloadable markdown artifact named `conflict_review.md`

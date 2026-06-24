@@ -3,29 +3,39 @@
 """
 skill.py
 --------
-Builds and maintains SKILL.md from corpus batch notes.
+Builds and maintains purpose-specific SKILL.md profiles from corpus batch notes.
+
+Profiles are defined in profiles.yaml. Each profile is a narrow voice skill
+aimed at one writing context (e.g. `paper`). The selected profile determines
+which document types feed synthesis, which synthesis instructions are used,
+where the built skill is written, and how the skill handles LaTeX/.bib markup.
+If profiles.yaml is absent, skill.py falls back to legacy single-SKILL.md
+behavior writing to ./SKILL.md.
 
 Usage:
-    python skill.py --bootstrap
-        First-time synthesis prompt from all processed notes.
-        Paste output into Claude → save response as SKILL.md.
-
-    python skill.py --refine FILE
-        Refinement prompt comparing a specific notes file against current SKILL.md.
+    python skill.py [--profile NAME] --bootstrap
+        First-time synthesis prompt from the profile's processed notes.
         Paste output into Claude → save response → run --apply.
 
-    python skill.py --refine --all
-        Refinement prompt bundling all unrefined notes against current SKILL.md.
+    python skill.py [--profile NAME] --refine FILE
+        Refinement prompt comparing a notes file against the profile's SKILL.md.
 
-    python skill.py --apply CLAUDE_RESPONSE
-        Apply Claude's refinement response to SKILL.md (conflict-checks first).
-        Backs up current SKILL.md to skills/SKILL_{timestamp}.md before writing.
+    python skill.py [--profile NAME] --refine --all
+        Refinement prompt bundling all of the profile's unrefined notes.
 
-    python skill.py --overrides
-        Append or replace the ## Manual Overrides section in SKILL.md from overrides.yaml.
+    python skill.py [--profile NAME] --revision FILE
+        Revision prompt from a freeform instructions file (authoritative).
+
+    python skill.py [--profile NAME] --apply CLAUDE_RESPONSE
+        Apply Claude's response to the profile's SKILL.md (conflict-checks first).
+
+    python skill.py [--profile NAME] --overrides
+        Append or replace the ## Manual Overrides section in the profile's SKILL.md.
 
     python skill.py --output FILE
         Write prompt to FILE instead of the default prompts/ path.
+
+    --profile defaults to profiles.yaml `default_profile`.
 
 Dependencies:
     pip install pyyaml
@@ -43,12 +53,106 @@ HERE = Path(__file__).parent
 
 OVERRIDES_FILE = HERE / "overrides.yaml"
 STATE_FILE = HERE / "corpus_state.yaml"
-SKILL_FILE = HERE / "SKILL.md"
-SKILL_TEMPLATE_FILE = HERE / "core" / "SKILL_TEMPLATE.md"
+PROFILES_FILE = HERE / "profiles.yaml"
 REFINEMENT_PROMPT_FILE = HERE / "templates" / "refinement_prompt.md"
 REVISION_PROMPT_FILE = HERE / "templates" / "revision_prompt.md"
-SYNTHESIS_PROMPT_FILE = HERE / "templates" / "synthesis_prompt.md"
 EVALUATION_DIMENSIONS_FILE = HERE / "core" / "EVALUATION_DIMENSIONS.md"
+
+# Legacy defaults, used only when profiles.yaml is absent.
+LEGACY_SKILL_FILE = HERE / "SKILL.md"
+LEGACY_SKILL_TEMPLATE_FILE = HERE / "core" / "SKILL_TEMPLATE.md"
+LEGACY_SYNTHESIS_PROMPT_FILE = HERE / "templates" / "synthesis_prompt.md"
+
+
+# ---------------------------------------------------------------------------
+# Profiles
+# ---------------------------------------------------------------------------
+
+class Profile:
+    """Resolved settings for one purpose-specific skill build."""
+
+    def __init__(self, name: str, data: dict):
+        self.name = name
+        self.skill_name = data.get("skill_name", f"{name}-voice")
+        self.purpose = (data.get("purpose") or "").strip()
+        self.corpus_types = data.get("corpus_types")  # None = all types
+        self.target_tokens = data.get("target_tokens")
+        self.latex_policy = data.get("latex_policy", "defer")
+        self.output = HERE / data.get("output", "SKILL.md")
+        self.synthesis_template = HERE / data.get(
+            "synthesis_template", "templates/synthesis_prompt.md"
+        )
+        # Slim paper template if it exists, else the general template.
+        skill_tmpl = data.get("skill_template")
+        if skill_tmpl:
+            self.skill_template = HERE / skill_tmpl
+        elif (HERE / "core" / "SKILL_TEMPLATE_PAPER.md").exists() and name == "paper":
+            self.skill_template = HERE / "core" / "SKILL_TEMPLATE_PAPER.md"
+        else:
+            self.skill_template = LEGACY_SKILL_TEMPLATE_FILE
+
+    @property
+    def refined_flag(self) -> str:
+        """Per-profile incorporation flag in corpus_state.yaml."""
+        return f"refined_into_skill_{self.name}"
+
+    def matches_type(self, doc: dict) -> bool:
+        if not self.corpus_types:
+            return True
+        return doc.get("type") in self.corpus_types
+
+
+def _legacy_profile() -> Profile:
+    """Profile used when profiles.yaml is absent — original single-SKILL.md behavior."""
+    p = Profile("legacy", {})
+    p.output = LEGACY_SKILL_FILE
+    p.synthesis_template = LEGACY_SYNTHESIS_PROMPT_FILE
+    p.skill_template = LEGACY_SKILL_TEMPLATE_FILE
+    p.corpus_types = None
+    # Legacy uses the original flag name, not a per-profile one.
+    p._legacy = True
+    return p
+
+
+def load_profile(name: str | None) -> Profile:
+    if not PROFILES_FILE.exists():
+        if name and name != "legacy":
+            print(f"WARNING: profiles.yaml not found; --profile {name} ignored, "
+                  "using legacy SKILL.md behavior.")
+        return _legacy_profile()
+
+    with open(PROFILES_FILE) as f:
+        cfg = yaml.safe_load(f) or {}
+    profiles = cfg.get("profiles", {})
+    if not profiles:
+        print("ERROR: profiles.yaml defines no profiles.")
+        sys.exit(1)
+
+    chosen = name or cfg.get("default_profile")
+    if not chosen:
+        print("ERROR: no --profile given and no default_profile in profiles.yaml.")
+        sys.exit(1)
+    if chosen not in profiles:
+        print(f"ERROR: profile '{chosen}' not found in profiles.yaml. "
+              f"Available: {', '.join(sorted(profiles))}")
+        sys.exit(1)
+
+    return Profile(chosen, profiles[chosen])
+
+
+def is_refined(doc: dict, profile: Profile) -> bool:
+    if getattr(profile, "_legacy", False):
+        return bool(doc.get("refined_into_skill"))
+    return bool(doc.get(profile.refined_flag))
+
+
+def set_refined(doc: dict, profile: Profile, value: bool) -> None:
+    if getattr(profile, "_legacy", False):
+        doc["refined_into_skill"] = value
+        doc["refined_date"] = datetime.now().strftime("%Y-%m-%d")
+    else:
+        doc[profile.refined_flag] = value
+        doc[f"refined_date_{profile.name}"] = datetime.now().strftime("%Y-%m-%d")
 
 
 # ---------------------------------------------------------------------------
@@ -92,40 +196,35 @@ def load_file(path: Path, label: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Corpus weight calculation
+# Corpus stats
 # ---------------------------------------------------------------------------
+# Documents contribute evenly to synthesis. Token counts are reported as
+# informational corpus-size metadata only — they carry no weight. Claude weighs
+# patterns by how consistently they recur across the per-document notes, not by
+# any token or confidence arithmetic.
 
-def compute_corpus_stats(state: dict) -> dict:
+def compute_corpus_stats(state: dict, profile: Profile = None) -> dict:
     processed = [d for d in state["documents"] if d.get("processed")]
+    if profile is not None:
+        processed = [d for d in processed if profile.matches_type(d)]
     raw_tokens = sum(d.get("prose_tokens", 0) for d in processed)
-    effective_tokens = sum(
-        d.get("prose_tokens", 0) * d.get("confidence", 3) / 5.0
-        for d in processed
-    )
     return {
         "doc_count": len(processed),
         "raw_tokens": raw_tokens,
-        "effective_tokens": effective_tokens,
         "processed_docs": processed,
     }
-
-
-def compute_new_doc_influence(new_doc: dict, corpus_stats: dict) -> float:
-    new_effective = new_doc.get("prose_tokens", 0) * new_doc.get("confidence", 3) / 5.0
-    corpus_effective = corpus_stats["effective_tokens"]
-    if corpus_effective + new_effective == 0:
-        return 1.0
-    return new_effective / (corpus_effective + new_effective)
 
 
 # ---------------------------------------------------------------------------
 # Collect unrefined notes
 # ---------------------------------------------------------------------------
 
-def get_unrefined_notes(state: dict) -> list[dict]:
+def get_unrefined_notes(state: dict, profile: Profile) -> list[dict]:
     return [
         d for d in state["documents"]
-        if d.get("processed") and not d.get("refined_into_skill")
+        if d.get("processed")
+        and profile.matches_type(d)
+        and not is_refined(d, profile)
     ]
 
 
@@ -133,40 +232,76 @@ def get_unrefined_notes(state: dict) -> list[dict]:
 # Prompt builders
 # ---------------------------------------------------------------------------
 
-def build_bootstrap_prompt(state: dict) -> str:
-    synthesis_prompt = load_file(SYNTHESIS_PROMPT_FILE, "synthesis_prompt.md")
-    skill_template = load_file(SKILL_TEMPLATE_FILE, "SKILL_TEMPLATE.md")
+def _profile_directives_block(profile: Profile) -> str:
+    """Profile settings injected at the top of the bootstrap prompt so Claude
+    knows the skill name, purpose, length budget, and LaTeX policy."""
+    budget = (f"{profile.target_tokens:,} tokens" if profile.target_tokens
+              else "no hard limit (keep it tight)")
+    types = ", ".join(profile.corpus_types) if profile.corpus_types else "all types"
+    latex = {
+        "defer": "DEFER all LaTeX/.bib/figure markup to Claude's standard best "
+                 "practices. Do NOT prescribe markup conventions in the skill — "
+                 "it governs prose voice and argument structure only.",
+    }.get(profile.latex_policy, profile.latex_policy)
+    return f"""## Profile directives (honor these exactly)
+
+- **Profile:** {profile.name}
+- **Skill name (front matter `name`):** {profile.skill_name}
+- **Purpose:** {profile.purpose}
+- **Source corpus types:** {types}
+- **Token budget:** {budget}
+- **LaTeX policy:** {latex}
+"""
+
+
+def build_bootstrap_prompt(state: dict, profile: Profile) -> str:
+    synthesis_prompt = load_file(profile.synthesis_template,
+                                 profile.synthesis_template.name)
+    skill_template = load_file(profile.skill_template, profile.skill_template.name)
     eval_dims = load_file(EVALUATION_DIMENSIONS_FILE, "EVALUATION_DIMENSIONS.md")
-    corpus_stats = compute_corpus_stats(state)
+    corpus_stats = compute_corpus_stats(state, profile)
+
+    if not corpus_stats["processed_docs"]:
+        types = ", ".join(profile.corpus_types) if profile.corpus_types else "any"
+        print(f"ERROR: no processed documents of type [{types}] for profile "
+              f"'{profile.name}'. Register/extract matching documents first.")
+        sys.exit(1)
 
     notes_block = ""
     for doc in corpus_stats["processed_docs"]:
         notes_file = doc.get("batch_notes_file")
         if notes_file and Path(notes_file).exists():
             notes_content = Path(notes_file).read_text(encoding="utf-8")
-            notes_block += f"\n\n---\n## Batch notes: {doc['id']}\n\n{notes_content}"
+            notes_block += f"\n\n---\n## Batch notes: {doc['id']} ({doc.get('type')})\n\n{notes_content}"
         else:
             notes_block += f"\n\n---\n## Batch notes: {doc['id']}\n[Notes file not found: {notes_file}]"
 
     metadata_block = f"""## Corpus metadata (for SKILL.md header)
 
 - Documents processed: {corpus_stats['doc_count']}
-- Raw prose tokens: {corpus_stats['raw_tokens']:,}
-- Effective tokens (confidence-weighted): {corpus_stats['effective_tokens']:,.0f}
+- Raw prose tokens: {corpus_stats['raw_tokens']:,}  (informational corpus size; not a weight)
 - Analysis date: {datetime.now().strftime("%Y-%m")}
+
+All documents contribute evenly. Weigh a pattern by how consistently it recurs
+across the per-document notes below, not by token count.
 """
 
     return f"""---
 action: bootstrap
-output_file: SKILL.md
+profile: {profile.name}
+output_file: {profile.output.relative_to(HERE)}
 generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
+---
+
+{_profile_directives_block(profile)}
+
 ---
 
 {metadata_block}
 
 ---
 
-## Batch notes (all processed documents)
+## Batch notes ({profile.name} corpus)
 {notes_block}
 
 ---
@@ -177,7 +312,7 @@ generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 ---
 
-## SKILL_TEMPLATE.md (output format)
+## {profile.skill_template.name} (output format)
 
 {skill_template}
 
@@ -189,13 +324,14 @@ generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 """
 
 
-def build_refinement_prompt(new_notes_docs: list[dict], state: dict) -> str:
+def build_refinement_prompt(new_notes_docs: list[dict], state: dict, profile: Profile) -> str:
     refinement_prompt_template = load_file(REFINEMENT_PROMPT_FILE, "refinement_prompt.md")
-    current_skill = load_file(SKILL_FILE, "SKILL.md")
-    corpus_stats = compute_corpus_stats(state)
+    current_skill = load_file(profile.output, str(profile.output.name))
+    corpus_stats = compute_corpus_stats(state, profile)
 
     new_notes_block = ""
-    influence_notes = []
+    new_count = len(new_notes_docs)
+    prior_count = corpus_stats["doc_count"]
 
     for doc in new_notes_docs:
         notes_file = doc.get("batch_notes_file")
@@ -204,37 +340,32 @@ def build_refinement_prompt(new_notes_docs: list[dict], state: dict) -> str:
         else:
             notes_content = f"[Notes file not found: {notes_file}]"
 
-        influence = compute_new_doc_influence(doc, corpus_stats)
-        influence_pct = influence * 100
-
         new_notes_block += f"""
 ---
 ## New batch notes: {doc['id']}
 **Document type:** {doc['type']}
-**Confidence:** {doc['confidence']}/5
-**Prose tokens:** {doc.get('prose_tokens', 0):,}
-**Influence weight:** {influence_pct:.1f}% of combined corpus
-**Interpretation:** This document represents {influence_pct:.1f}% of the total
-confidence-weighted evidence. Treat contradictions with the existing SKILL.md
-with proportional skepticism — a single document at {influence_pct:.1f}% weight
-should not overturn patterns established across the prior corpus without strong
-justification.
+**Prose tokens:** {doc.get('prose_tokens', 0):,}  (informational; not a weight)
 
 {notes_content}
 """
-        influence_notes.append(f"  {doc['id']}: {influence_pct:.1f}% influence")
 
     corpus_summary = f"""## Corpus context
 
-Prior corpus effective tokens: {corpus_stats['effective_tokens']:,.0f}
-Prior documents processed: {corpus_stats['doc_count']}
-New document(s) influence weights:
-{chr(10).join(influence_notes)}
+Documents already incorporated into the current SKILL.md: {prior_count}
+New document(s) in this refinement: {new_count}
+
+All documents contribute evenly. The current SKILL.md already reflects
+{prior_count} document(s); these {new_count} new document(s) are a smaller share
+of the combined evidence. Do not let a pattern that appears in only the new
+notes overturn one established across the prior corpus unless it recurs
+consistently — weigh by how often a pattern is observed across documents, never
+by token count.
 """
 
     return f"""---
 action: refine
-output_file: SKILL.md
+profile: {profile.name}
+output_file: {profile.output.relative_to(HERE)}
 generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 ---
 
@@ -259,13 +390,14 @@ generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 """
 
 
-def build_revision_prompt(instructions: str) -> str:
+def build_revision_prompt(instructions: str, profile: Profile) -> str:
     revision_prompt_template = load_file(REVISION_PROMPT_FILE, "revision_prompt.md")
-    current_skill = load_file(SKILL_FILE, "SKILL.md")
+    current_skill = load_file(profile.output, str(profile.output.name))
 
     return f"""---
 action: revision
-output_file: SKILL.md
+profile: {profile.name}
+output_file: {profile.output.relative_to(HERE)}
 generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 ---
 
@@ -316,7 +448,22 @@ def print_conflict(response_text: str) -> None:
 # Commands
 # ---------------------------------------------------------------------------
 
-def cmd_apply(response_file: str, state: dict) -> None:
+def _inject_overrides(text: str, overrides_block: str) -> str:
+    marker = "## Manual Overrides"
+    if marker in text:
+        return re.sub(
+            r"## Manual Overrides\b.*",
+            overrides_block,
+            text,
+            count=1,
+            flags=re.DOTALL,
+        )
+    if overrides_block:
+        return text.rstrip("\n") + "\n\n---\n\n" + overrides_block + "\n"
+    return text
+
+
+def cmd_apply(response_file: str, state: dict, profile: Profile) -> None:
     response_path = Path(response_file)
     if not response_path.exists():
         print(f"ERROR: Response file not found: {response_path}")
@@ -326,44 +473,33 @@ def cmd_apply(response_file: str, state: dict) -> None:
 
     if detect_conflict(response_text):
         print_conflict(response_text)
-        print("\nSKILL.md was NOT updated. Resolve the conflict first.")
+        print(f"\n{profile.output.name} was NOT updated. Resolve the conflict first.")
         return
 
-    # Inject overrides
-    overrides = load_overrides()
-    overrides_block = _overrides_block(overrides)
-    marker = "## Manual Overrides"
-    if marker in response_text:
-        response_text = re.sub(
-            r"## Manual Overrides\b.*",
-            overrides_block,
-            response_text,
-            count=1,
-            flags=re.DOTALL,
-        )
-    elif overrides_block:
-        response_text = response_text.rstrip("\n") + "\n\n---\n\n" + overrides_block + "\n"
+    response_text = _inject_overrides(response_text, _overrides_block(load_overrides()))
 
-    SKILL_FILE.write_text(response_text, encoding="utf-8")
-    print(f"SKILL.md updated.")
+    profile.output.parent.mkdir(parents=True, exist_ok=True)
+    profile.output.write_text(response_text, encoding="utf-8")
+    print(f"{profile.output.relative_to(HERE)} updated (profile: {profile.name}).")
 
-    # Mark unrefined docs as refined
+    # Mark this profile's unrefined matching docs as incorporated.
     updated = 0
     for doc in state["documents"]:
-        if doc.get("processed") and not doc.get("refined_into_skill"):
-            doc["refined_into_skill"] = True
-            doc["refined_date"] = datetime.now().strftime("%Y-%m-%d")
+        if (doc.get("processed") and profile.matches_type(doc)
+                and not is_refined(doc, profile)):
+            set_refined(doc, profile, True)
             updated += 1
 
     if updated:
         from corpus import save_state
         save_state(state)
-        print(f"Marked {updated} document(s) as incorporated into SKILL.md.")
+        print(f"Marked {updated} document(s) as incorporated into "
+              f"{profile.output.name} (profile: {profile.name}).")
 
 
-def cmd_overrides() -> None:
-    if not SKILL_FILE.exists():
-        print(f"ERROR: SKILL.md not found at {SKILL_FILE}")
+def cmd_overrides(profile: Profile) -> None:
+    if not profile.output.exists():
+        print(f"ERROR: {profile.output.relative_to(HERE)} not found. Run --bootstrap first.")
         sys.exit(1)
 
     overrides = load_overrides()
@@ -371,23 +507,10 @@ def cmd_overrides() -> None:
         print("No overrides found in overrides.yaml — nothing to do.")
         return
 
-    overrides_block = _overrides_block(overrides)
-    skill_text = SKILL_FILE.read_text(encoding="utf-8")
-
-    marker = "## Manual Overrides"
-    if marker in skill_text:
-        skill_text = re.sub(
-            r"## Manual Overrides\b.*",
-            overrides_block,
-            skill_text,
-            count=1,
-            flags=re.DOTALL,
-        )
-    else:
-        skill_text = skill_text.rstrip("\n") + "\n\n---\n\n" + overrides_block + "\n"
-
-    SKILL_FILE.write_text(skill_text, encoding="utf-8")
-    print(f"SKILL.md updated with {len(overrides)} override(s).")
+    skill_text = profile.output.read_text(encoding="utf-8")
+    skill_text = _inject_overrides(skill_text, _overrides_block(overrides))
+    profile.output.write_text(skill_text, encoding="utf-8")
+    print(f"{profile.output.relative_to(HERE)} updated with {len(overrides)} override(s).")
 
 
 # ---------------------------------------------------------------------------
@@ -396,8 +519,10 @@ def cmd_overrides() -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Build and maintain SKILL.md from corpus batch notes."
+        description="Build and maintain purpose-specific SKILL.md profiles from corpus batch notes."
     )
+    parser.add_argument("--profile", metavar="NAME", default=None,
+                        help="Profile from profiles.yaml (default: its default_profile)")
     parser.add_argument("--bootstrap", action="store_true",
                         help="Generate first-time synthesis prompt from all processed notes")
     parser.add_argument("--refine", metavar="FILE", nargs="?", const="--all",
@@ -414,47 +539,50 @@ def main():
                         help="Write prompt to FILE instead of default prompts/ path")
     args = parser.parse_args()
 
+    profile = load_profile(args.profile)
+
     if args.overrides:
-        cmd_overrides()
+        cmd_overrides(profile)
         return
 
     state = load_state()
 
     if args.apply:
-        cmd_apply(args.apply, state)
+        cmd_apply(args.apply, state, profile)
         return
 
     datestamp = datetime.now().strftime("%Y-%m-%d")
     new_docs = []
 
     if args.bootstrap:
-        prompt = build_bootstrap_prompt(state)
+        prompt = build_bootstrap_prompt(state, profile)
 
     elif args.revision:
         revision_path = Path(args.revision)
         if not revision_path.exists():
             print(f"ERROR: Instructions file not found: {revision_path}")
             sys.exit(1)
-        if not SKILL_FILE.exists():
-            print("No SKILL.md found. Run --bootstrap first.")
+        if not profile.output.exists():
+            print(f"No {profile.output.name} found for profile '{profile.name}'. "
+                  "Run --bootstrap first.")
             sys.exit(1)
         instructions = revision_path.read_text(encoding="utf-8")
-        prompt = build_revision_prompt(instructions)
+        prompt = build_revision_prompt(instructions, profile)
 
     elif args.refine is not None:
         if args.all or args.refine == "--all":
-            # Bundle all unrefined notes
-            unrefined = get_unrefined_notes(state)
+            # Bundle all unrefined notes for this profile
+            unrefined = get_unrefined_notes(state, profile)
             if not unrefined:
-                print("No unrefined batch notes found.")
-                print("All processed documents have been incorporated into SKILL.md.")
+                print(f"No unrefined batch notes for profile '{profile.name}'.")
+                print(f"All matching documents are incorporated into {profile.output.name}.")
                 print("To add new documents: python corpus.py --add <path>")
                 return
-            if not SKILL_FILE.exists():
-                print("No SKILL.md found. Run --bootstrap for first-time synthesis.")
+            if not profile.output.exists():
+                print(f"No {profile.output.name} found. Run --bootstrap for first-time synthesis.")
                 return
             new_docs = unrefined
-            prompt = build_refinement_prompt(unrefined, state)
+            prompt = build_refinement_prompt(unrefined, state, profile)
         else:
             # Specific notes file
             notes_file = args.refine
@@ -467,8 +595,13 @@ def main():
                 print(f"ERROR: No document found with notes file: {notes_file}")
                 print("Make sure you ran: python extract.py --mark-done DOC_ID NOTES_FILE")
                 sys.exit(1)
+            off_type = [d for d in matching if not profile.matches_type(d)]
+            if off_type:
+                print(f"WARNING: {notes_file} is type '{off_type[0].get('type')}', "
+                      f"not in profile '{profile.name}' corpus_types "
+                      f"({profile.corpus_types}). Refining anyway as instructed.")
             new_docs = matching
-            prompt = build_refinement_prompt(matching, state)
+            prompt = build_refinement_prompt(matching, state, profile)
 
     else:
         parser.print_help()
@@ -480,12 +613,12 @@ def main():
     if args.output:
         out_path = Path(args.output)
     elif args.bootstrap:
-        out_path = PROMPTS_DIR / f"bootstrap_prompt_{datestamp}.md"
+        out_path = PROMPTS_DIR / f"bootstrap_prompt_{profile.name}_{datestamp}.md"
     elif args.revision:
-        out_path = PROMPTS_DIR / f"revision_prompt_{datestamp}.md"
+        out_path = PROMPTS_DIR / f"revision_prompt_{profile.name}_{datestamp}.md"
     else:
         doc_slug = "+".join(d["id"] for d in new_docs)
-        out_path = PROMPTS_DIR / f"refinement_prompt_{doc_slug}_{datestamp}.md"
+        out_path = PROMPTS_DIR / f"refinement_prompt_{profile.name}_{doc_slug}_{datestamp}.md"
 
     out_path.write_text(prompt, encoding="utf-8")
     print(f"Prompt written to: {out_path}")

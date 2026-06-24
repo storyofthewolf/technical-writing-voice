@@ -2,26 +2,26 @@
 
 ## How to use this prompt
 
-This prompt is generated and pre-populated by `refine.py --bootstrap` and written
-into `bootstrap_prompt.md`. You do not fill it in by hand.
+This prompt is generated and pre-populated by `skill.py --bootstrap`, which writes
+it into `prompts/bootstrap_prompt_DATE.md`. You do not fill it in by hand.
 
 **Workflow:**
 1. Register and extract your bootstrap corpus documents using `corpus.py` and `extract.py`
-2. Mark each document done with `extract.py --mark-done`
-3. Run: `python refine.py --bootstrap > bootstrap_prompt.md`
-4. Paste `bootstrap_prompt.md` into a Claude session
-5. Save Claude's complete response as `SKILL.md` in your project directory
-6. Run: `python refine.py --apply SKILL.md claude_response.md`
+2. Save each document's notes to `batch_notes/notes_DOCID.md` (auto-detected on the next `corpus.py` status check)
+3. Run: `python skill.py --bootstrap` (add `--profile NAME` for a specific profile)
+4. Upload the generated prompt to a Claude session
+5. Save Claude's complete response (e.g. to `downloads/SKILL_response.md`)
+6. Run: `python skill.py --apply downloads/SKILL_response.md`
 
-**To add documents later:** extract and mark them done, then run `refine.py` without
-`--bootstrap`. It will generate a refinement prompt instead of a synthesis prompt.
+**To add documents later:** extract them, then run `python skill.py --refine --all`
+to generate a refinement prompt instead of a synthesis prompt.
 
 ---
 
 ## The prompt
 
-Everything below this line is what `refine.py --bootstrap` embeds into
-`bootstrap_prompt.md`, preceded by the batch notes and corpus metadata it generates.
+Everything below this line is what `skill.py --bootstrap` embeds into the generated
+bootstrap prompt, preceded by the batch notes and corpus metadata it generates.
 
 ---
 
@@ -34,16 +34,18 @@ contexts — papers, proposals, reviews, emails, and other technical writing.
 
 The prompt above this instruction block contains:
 
-- **Corpus metadata** — document count, raw token count, confidence-weighted effective
-  token count. Use these to populate the SKILL.md corpus metadata block verbatim.
+- **Corpus metadata** — document count and raw token count. Use these to populate
+  the SKILL.md corpus metadata block. Token count is informational corpus size,
+  not a weight.
 - **Batch notes** — one section per processed document, each containing voice
   observations across the nine evaluation dimensions. Each section includes the
-  document type, confidence rating, prose token count, and any flags for synthesis.
+  document type, prose token count, and any flags for synthesis.
 - **SKILL_TEMPLATE.md** — the exact output format you must produce.
 - **EVALUATION_DIMENSIONS.md** — definitions of all nine dimensions.
 
-There is no weights.txt or corpus.yaml. Weighting information is embedded
-directly in each batch notes section as document type, confidence, and token count.
+All documents contribute evenly. There is no weighting system — weigh a pattern
+by how consistently it recurs across documents and document types, never by token
+count or any per-document rating.
 
 ## Your task
 
@@ -61,12 +63,9 @@ where absent document types create meaningful gaps — for example, D8 (Quantita
 Integration) will be weak without journal papers or proposals; D6 (Argumentation
 Structure) will be weak without proposals or research statements.
 
-**Document count per type:** Single-document types have lower confidence than types
-with multiple documents. Note which observations rest on a single document.
-
-**Confidence distribution:** High-confidence documents (4-5) carry more signal than
-low-confidence ones (1-2). If the batch is dominated by low-confidence documents,
-note this as a corpus limitation.
+**Document count per type:** An observation reported across several documents is
+better supported than one resting on a single document. Note which observations
+rest on a single document.
 
 **Flags from extraction:** Each batch notes section ends with a "Flags for synthesis"
 entry. Collect all of these before proceeding — they are the extraction session's
@@ -82,15 +81,15 @@ section. Do not proceed to Step 2 until the audit is complete.
 For each of the nine dimensions, compare observations across all batch notes:
 
 **Convergent observations** — patterns reported consistently across multiple documents
-and document types. Weight these by: how many documents support them, the confidence
-ratings of those documents, and their token counts. These are the strongest candidates
-for SKILL.md core patterns.
+and document types. Judge their strength by how many documents support them and how
+consistently they are described. These are the strongest candidates for SKILL.md
+core patterns.
 
 **Divergent observations** — patterns that appear in some documents but not others,
 or described differently across documents. For each divergence determine:
 - Is this register variation by document type? (expected — note as type-specific delta)
 - Is this temporal voice evolution? (note approximate period)
-- Is this a single-document outlier at low confidence? (flag or discard)
+- Is this a single-document outlier? (flag or discard)
 - Is this a co-author influence artifact? (flag from extraction notes, then discard)
 
 **Generic observations** — patterns flagged as discarded in batch notes. Cross-check:
@@ -112,7 +111,6 @@ Using your resolution log, rank all nine dimensions from highest to lowest signa
 Signal strength is determined by:
 - **Frequency** — how many documents reported this pattern
 - **Consistency** — how similar were the descriptions across documents and types
-- **Weight** — do high-confidence, high-token-count documents support this observation
 - **Distinctiveness** — is the observation specific and falsifiable enough to distinguish
   this writer from peers in the same field
 
@@ -188,9 +186,9 @@ Using SKILL_TEMPLATE.md as your exact output format, produce the completed SKILL
 - The register modulation per-context deltas section covers only document types
   present in the corpus. Omit types with no evidence.
 - Populate the corpus metadata block from the metadata provided at the top of this
-  prompt — document count, raw tokens, effective tokens, analysis date.
-- Populate the synthesis notes section fully: corpus confidence assessment, discarded
-  observations and why, conflicting signals and how resolved, voice evolution notes
+  prompt — document count, raw tokens, analysis date.
+- Populate the synthesis notes section fully: corpus representativeness assessment,
+  discarded observations and why, conflicting signals and how resolved, voice evolution notes
   if temporal patterns were visible, known gaps from absent document types.
   This section is what makes the SKILL.md updatable when new documents are added later.
 

@@ -31,15 +31,17 @@ Mark confirmed patterns with a brief inline note: `[confirmed: doc_id]`
 The new document reveals a pattern not currently in SKILL.md.
 
 **Action:** Add the new observation to the appropriate dimension section.
-Use the influence weight provided in the batch notes header to calibrate
-how prominently to present the addition:
+All documents contribute evenly, so calibrate prominence by how much corpus
+already exists and whether the pattern recurs, not by any weight:
 
-- Influence > 20%: add as a core pattern candidate, flag as single-document
-- Influence 10-20%: add as a secondary pattern, flag as single-document
-- Influence < 10%: add as a footnote observation, flag for confirmation
-  by future documents before elevating
+- If the current SKILL.md rests on only a few documents: the new observation may
+  be a core pattern candidate, flagged as single-document.
+- If the current SKILL.md already rests on many documents: add it as a secondary
+  pattern or a footnote, flagged for confirmation by future documents before
+  elevating. A pattern seen in only one new document should not displace one
+  established across the prior corpus unless it recurs consistently.
 
-Tag all additions: `[new: doc_id, influence X%]`
+Tag all additions: `[new: doc_id]`
 
 ---
 
@@ -58,8 +60,8 @@ A contradiction is genuine when:
 A contradiction is NOT genuine (resolve silently) when:
 - The conflict is between different document types — this is register variation,
   not contradiction. Note it as a type-specific delta in D9.
-- The new document has influence < 5% and the existing pattern has strong
-  multi-document support — flag in synthesis notes but do not stop.
+- The new evidence rests on a single document while the existing pattern has
+  strong multi-document support — flag in synthesis notes but do not stop.
 
 **CONFLICT REVIEW block format:**
 
@@ -69,8 +71,8 @@ A contradiction is NOT genuine (resolve silently) when:
 **Dimension:** [D1-D9]
 **Existing pattern:** [quote the current SKILL.md pattern verbatim]
 **Conflicting evidence:** [quote the relevant observation from new batch notes]
-**Document:** [doc_id], influence [X%]
-**Existing support:** [how many documents / what token weight supports the current pattern]
+**Document:** [doc_id]
+**Existing support:** [how many documents support the current pattern]
 
 **Possible explanations:**
 1. The existing pattern is wrong or overstated — the new document corrects it
@@ -92,7 +94,7 @@ add a resolution note, and rerun: python refine.py --apply SKILL.md <response_fi
 
 Always update the SKILL.md corpus metadata block to reflect the new totals:
 - Increment document count
-- Increment raw and effective token counts
+- Increment the raw token count (informational corpus size)
 - Update analysis date
 
 ---

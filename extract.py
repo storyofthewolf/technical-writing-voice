@@ -9,7 +9,6 @@ save Claude's response as the batch notes file, then mark the document processed
 
 Usage:
     python extract.py DOC_ID [DOC_ID ...]    # extract specific documents
-    python extract.py --priority              # extract highest-confidence unprocessed doc
     python extract.py --all                  # extract all unprocessed documents
 
 After running:
@@ -302,7 +301,6 @@ action: extract
 output_file: notes_{doc['id']}.md
 doc_id: {doc['id']}
 doc_type: {doc['type']}
-confidence: {doc['confidence']}
 generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 notes: {doc.get('notes', '')}
 ---
@@ -370,17 +368,6 @@ def cmd_extract(doc_ids: list[str], state: dict) -> None:
         print()
 
 
-def cmd_priority(state: dict) -> None:
-    unprocessed = [d for d in state["documents"] if not d.get("processed")]
-    if not unprocessed:
-        print("All documents processed.")
-        return
-    # highest confidence, then most tokens
-    best = max(unprocessed, key=lambda d: (d.get("confidence", 3), d.get("prose_tokens", 0)))
-    print(f"Highest priority unprocessed: {best['id']} (confidence {best['confidence']}, {best.get('prose_tokens', 0):,} tokens)")
-    cmd_extract([best["id"]], state)
-
-
 def cmd_all(state: dict) -> None:
     unprocessed = [d["id"] for d in state["documents"] if not d.get("processed")]
     if not unprocessed:
@@ -417,8 +404,6 @@ def main():
         description="Prepare extraction prompts for unprocessed corpus documents."
     )
     parser.add_argument("doc_ids", nargs="*", help="Document IDs to extract")
-    parser.add_argument("--priority", action="store_true",
-                        help="Extract the single highest-priority unprocessed document")
     parser.add_argument("--all", action="store_true",
                         help="Extract all unprocessed documents")
     parser.add_argument("--mark-done", nargs=2, metavar=("DOC_ID", "NOTES_FILE"),
@@ -429,8 +414,6 @@ def main():
 
     if args.mark_done:
         cmd_mark_done(args.mark_done[0], args.mark_done[1], state)
-    elif args.priority:
-        cmd_priority(state)
     elif args.all:
         cmd_all(state)
     elif args.doc_ids:

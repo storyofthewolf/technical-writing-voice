@@ -13,26 +13,21 @@ Usage:
     python corpus.py                          # show current status
 
     # Add a single document with metadata in one command
-    python corpus.py --add paper.pdf --type journal_paper --confidence 5 --notes "sole author"
+    python corpus.py --add paper.pdf --type journal_paper --notes "sole author"
 
     # Add a directory (defaults applied; update metadata afterward)
     python corpus.py --add pdfs/
 
     # Update metadata on already-registered documents
     python corpus.py --set-type DOC_ID journal_paper
-    python corpus.py --set-confidence DOC_ID 5
     python corpus.py --set-notes DOC_ID "sole author, high signal"
 
 Document types:
     journal_paper, proposal, research_statement, letter_of_rec,
     review_perspective, technical_email, other
 
-Confidence scale (1-5):
-    5 — Exemplary: clearest expression of voice
-    4 — Strong: clearly yours, minor stylistic compromises
-    3 — Typical: representative but unremarkable
-    2 — Weak: constrained by format, audience, or early career period
-    1 — Marginal: include for coverage only
+All documents contribute evenly to synthesis. Token counts are recorded as
+informational corpus-size metadata only — they are not used as weights.
 
 Dependencies:
     pip install pymupdf tiktoken pyyaml
@@ -134,29 +129,18 @@ def validate_type(doc_type: str) -> str:
     return doc_type
 
 
-def validate_confidence(conf_str: str) -> int:
-    try:
-        confidence = int(conf_str)
-        if not 1 <= confidence <= 5:
-            raise ValueError
-        return confidence
-    except ValueError:
-        print("ERROR: Confidence must be an integer between 1 and 5.")
-        sys.exit(1)
-
-
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
 
-def cmd_add(paths, state, doc_type=None, confidence=None, notes=""):
+def cmd_add(paths, state, doc_type=None, notes=""):
     """
     Register one or more files or directories.
 
-    If --type / --confidence / --notes are supplied alongside --add,
-    they apply to every file being added in this invocation. This is
-    most useful when adding a single file. When adding a directory,
-    use the --set-* commands afterward to tune individual documents.
+    If --type / --notes are supplied alongside --add, they apply to every file
+    being added in this invocation. This is most useful when adding a single
+    file. When adding a directory, use the --set-* commands afterward to tune
+    individual documents.
     """
     existing_ids = {d["id"] for d in state["documents"]}
     existing_paths = {d["filepath"] for d in state["documents"]}
@@ -192,13 +176,11 @@ def cmd_add(paths, state, doc_type=None, confidence=None, notes=""):
         print(f"{tokens:,} tokens")
 
         resolved_type = doc_type or DEFAULT_TYPE_FOR_SUFFIX.get(filepath.suffix.lower(), "other")
-        resolved_confidence = confidence or 3
 
         entry = {
             "id": doc_id,
             "filepath": filepath_str,
             "type": resolved_type,
-            "confidence": resolved_confidence,
             "prose_tokens": tokens,
             "processed": False,
             "batch_notes_file": None,
@@ -210,7 +192,7 @@ def cmd_add(paths, state, doc_type=None, confidence=None, notes=""):
         existing_ids.add(doc_id)
         existing_paths.add(filepath_str)
 
-        print(f"  -> Registered: {doc_id}  |  type: {resolved_type}  |  confidence: {resolved_confidence}/5")
+        print(f"  -> Registered: {doc_id}  |  type: {resolved_type}")
         if notes:
             print(f"     notes: {notes}")
         added += 1
@@ -218,8 +200,8 @@ def cmd_add(paths, state, doc_type=None, confidence=None, notes=""):
     save_state(state)
     print(f"\nAdded {added} document(s) to corpus_state.yaml.")
 
-    if not doc_type or not confidence:
-        print("Tip: review status with 'python corpus.py' and update any defaults with --set-* commands.")
+    if not doc_type:
+        print("Tip: review status with 'python corpus.py' and set types with --set-type.")
 
 
 def cmd_set_type(doc_id, doc_type, state):
@@ -229,18 +211,6 @@ def cmd_set_type(doc_id, doc_type, state):
             doc["type"] = doc_type
             save_state(state)
             print(f"Updated type for '{doc_id}': {doc_type}")
-            return
-    print(f"ERROR: Document ID not found: '{doc_id}'")
-    print("Run 'python corpus.py' to see registered IDs.")
-
-
-def cmd_set_confidence(doc_id, conf_str, state):
-    confidence = validate_confidence(conf_str)
-    for doc in state["documents"]:
-        if doc["id"] == doc_id:
-            doc["confidence"] = confidence
-            save_state(state)
-            print(f"Updated confidence for '{doc_id}': {confidence}/5")
             return
     print(f"ERROR: Document ID not found: '{doc_id}'")
     print("Run 'python corpus.py' to see registered IDs.")
@@ -283,17 +253,12 @@ def cmd_status(state):
     docs = state["documents"]
     if not docs:
         print("No documents registered.")
-        print("Add documents with: python corpus.py --add <path> [--type TYPE] [--confidence N] [--notes TEXT]")
+        print("Add documents with: python corpus.py --add <path> [--type TYPE] [--notes TEXT]")
         return
 
     processed = [d for d in docs if d.get("processed")]
     unprocessed = [d for d in docs if not d.get("processed")]
     refined = [d for d in docs if d.get("refined_into_skill")]
-
-    effective_tokens = sum(
-        d.get("prose_tokens", 0) * d.get("confidence", 3) / 5.0
-        for d in processed
-    )
 
     print("=" * 72)
     print("CORPUS STATUS")
@@ -301,22 +266,20 @@ def cmd_status(state):
     print(f"  Processed         : {len(processed)}")
     print(f"  Incorporated      : {len(refined)}  (refined into SKILL.md)")
     print(f"  Unprocessed       : {len(unprocessed)}")
-    print(f"  Raw tokens        : {sum(d.get('prose_tokens', 0) for d in processed):,}  (processed docs)")
-    print(f"  Effective tokens  : {effective_tokens:,.0f}  (confidence-weighted)")
+    print(f"  Raw tokens        : {sum(d.get('prose_tokens', 0) for d in processed):,}  (processed docs; informational)")
     print("=" * 72)
 
     if unprocessed:
-        print("\nUNPROCESSED  (sorted by priority: confidence down, tokens down)")
-        print(f"  {'ID':<40} {'TYPE':<22} {'CONF':>5}  {'TOKENS':>8}")
-        print(f"  {'-'*40} {'-'*22} {'-'*5}  {'-'*8}")
+        print("\nUNPROCESSED  (sorted by token count)")
+        print(f"  {'ID':<40} {'TYPE':<22}  {'TOKENS':>8}")
+        print(f"  {'-'*40} {'-'*22}  {'-'*8}")
         unprocessed_sorted = sorted(
             unprocessed,
-            key=lambda d: (-d.get("confidence", 3), -d.get("prose_tokens", 0))
+            key=lambda d: -d.get("prose_tokens", 0)
         )
         for d in unprocessed_sorted:
-            conf_stars = "*" * d["confidence"] + "-" * (5 - d["confidence"])
             notes_str = f"  <- {d['notes']}" if d.get("notes") else ""
-            print(f"  {d['id']:<40} {d['type']:<22} {conf_stars}  {d.get('prose_tokens', 0):>8,}{notes_str}")
+            print(f"  {d['id']:<40} {d['type']:<22}  {d.get('prose_tokens', 0):>8,}{notes_str}")
 
     if processed:
         print("\nPROCESSED")
@@ -339,10 +302,9 @@ def main():
         epilog="""
 Examples:
   python corpus.py
-  python corpus.py --add paper.pdf --type journal_paper --confidence 5 --notes "sole author"
+  python corpus.py --add paper.pdf --type journal_paper --notes "sole author"
   python corpus.py --add pdfs/
   python corpus.py --set-type smith_2019 proposal
-  python corpus.py --set-confidence smith_2019 4
   python corpus.py --set-notes smith_2019 "first author; methods section co-written"
         """
     )
@@ -351,15 +313,11 @@ Examples:
                         help="Register one or more files or directories")
     parser.add_argument("--type", dest="doc_type", metavar="TYPE",
                         help="Document type for --add (" + ", ".join(VALID_TYPES) + ")")
-    parser.add_argument("--confidence", metavar="N",
-                        help="Confidence 1-5 for --add")
     parser.add_argument("--notes", metavar="TEXT",
                         help="Notes string for --add or --set-notes")
 
     parser.add_argument("--set-type", nargs=2, metavar=("DOC_ID", "TYPE"),
                         help="Update document type for an existing document")
-    parser.add_argument("--set-confidence", nargs=2, metavar=("DOC_ID", "N"),
-                        help="Update confidence for an existing document")
     parser.add_argument("--set-notes", nargs=2, metavar=("DOC_ID", "TEXT"),
                         help="Update notes for an existing document")
 
@@ -368,18 +326,14 @@ Examples:
 
     if args.add:
         doc_type = validate_type(args.doc_type) if args.doc_type else None
-        confidence = validate_confidence(args.confidence) if args.confidence else None
         cmd_add(
             paths=args.add,
             state=state,
             doc_type=doc_type,
-            confidence=confidence,
             notes=args.notes or "",
         )
     elif args.set_type:
         cmd_set_type(args.set_type[0], args.set_type[1], state)
-    elif args.set_confidence:
-        cmd_set_confidence(args.set_confidence[0], args.set_confidence[1], state)
     elif args.set_notes:
         cmd_set_notes(args.set_notes[0], args.set_notes[1], state)
     else:

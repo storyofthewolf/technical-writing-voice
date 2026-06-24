@@ -1,7 +1,7 @@
 # TODO.md
 
 ## techncial
-### evaluate to remove "Confidence" inteval weighting
+### [DONE] removed confidence-interval weighting — all documents now contribute evenly; confidence field and --priority removed
 ### corpus.py registering cadence
     - add a preliminary token count to before extraction step
     - add token count to be shown under "Processed"

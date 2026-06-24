@@ -47,8 +47,7 @@ Read it first. The dimension sections provide the detail behind it.
 <!-- Updated automatically by refine.py on each refinement run. Do not edit by hand. -->
 
 **Documents processed:** [N]
-**Raw prose tokens:** [N]
-**Effective tokens (confidence-weighted):** [N]
+**Raw prose tokens:** [N — informational corpus size; not a weight]
 **Last updated:** [YYYY-MM-DD]
 **Version:** [N — increments on each refinement run]
 
@@ -299,12 +298,12 @@ or transformed as the writer moves from most to least constrained contexts?
 <!--
     Meta-observations from the synthesis process that don't fit cleanly
     into any single dimension but are useful for Claude to know.
-    Examples: corpus skew that affects confidence, dimensions where
+    Examples: corpus skew that affects representativeness, dimensions where
     conflicting signals were observed, notable voice evolution over time,
     dimensions that were discarded for genericity.
 -->
 
-**Corpus confidence:** [overall assessment — how representative is this corpus of the writer's current voice?]
+**Corpus representativeness:** [overall assessment — how representative is this corpus of the writer's current voice?]
 
 **Discarded observations:** [dimensions or observations that were dropped during synthesis and why]
 

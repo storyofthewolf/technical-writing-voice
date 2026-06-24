@@ -13,14 +13,7 @@ In a batched extraction session, upload a set of documents and instruct Claude t
 
 After all batches are processed, a synthesis session collapses per-batch observations into a final `SKILL.md` using the provided template.
 
-**Before running any extraction session**, ensure your corpus is configured in `corpus.yaml` and run the two utility scripts in order:
-
-```bash
-python count_tokens.py --corpus corpus.yaml
-python compute_weights.py --corpus corpus.yaml --output weights.txt
-```
-
-Inspect `weights.txt` before proceeding. If any document is dominating a dimension in a way that doesn't reflect your intentions, adjust `type_weights` or per-document `confidence` values in `corpus.yaml` before extracting. The weight table is your sanity check — use it.
+**All documents contribute evenly.** There is no weighting system — no token, type, or per-document weight is applied. A pattern is strong because it recurs consistently across documents, not because any document was assigned more weight. Register documents with `corpus.py`, extract each with `extract.py`, then synthesize with `skill.py`. Token counts are recorded only as informational corpus-size metadata.
 
 **Accepted input formats:** PDF (`.pdf`) for all document types except technical email. Plaintext (`.txt`) for technical email, organized by thematic grouping (see Document Type Classification below).
 
@@ -28,7 +21,7 @@ Inspect `weights.txt` before proceeding. If any document is dominating a dimensi
 
 ## Document Type Classification
 
-Every document uploaded for analysis must be classified before extraction begins. Classification determines which dimensions the document is most diagnostic for, guides batch composition, and drives the weighting system in `corpus.yaml`.
+Every document uploaded for analysis must be classified before extraction begins. Classification determines which dimensions the document is most diagnostic for (see the Document Type Matrix below) and guides batch composition.
 
 ### The scaffold spectrum
 
@@ -40,11 +33,11 @@ most constrained                                                               l
 lowest raw voice signal                                               highest raw voice signal
 ```
 
-This spectrum has a practical implication: a small, high-confidence corpus of technical emails and research statements may carry more voice signal per token than a large corpus of co-authored journal papers. Token normalization and per-document confidence ratings in `corpus.yaml` are what make this tradeoff explicit and tunable.
+This spectrum has a practical implication: a small corpus of technical emails and research statements may carry more voice signal per token than a large corpus of co-authored journal papers. Choose corpus composition with this tradeoff in mind, since documents contribute evenly once registered.
 
 ### Document types
 
-**Journal paper** — peer-reviewed empirical or review article. Heavily constrained by IMRaD conventions and journal style. Only upload papers where you have clear first-author editorial control. Co-authored papers where you wrote specific sections may be included but should receive lower confidence ratings.
+**Journal paper** — peer-reviewed empirical or review article. Heavily constrained by IMRaD conventions and journal style. Only upload papers where you have clear first-author editorial control. Co-authored papers where you wrote specific sections may be included; note the co-authorship so extraction can flag any sections that read as another author's voice.
 
 **Proposal** — grant application narrative (specific aims, significance, innovation, approach, or equivalent). Discretionary structure with required advocacy register. High diagnostic value for epistemic stance, argumentation structure, and register modulation. Only upload proposals where you were PI or lead writer.
 
@@ -54,32 +47,22 @@ This spectrum has a practical implication: a small, high-confidence corpus of te
 
 **Review article / perspective** — synthetic or opinion piece with discretionary organization. Intermediate between paper and proposal in constraint level. High diagnostic value for semantic style and organizational rhythm.
 
-**Technical report / white paper** — institutional or project documentation. Variable constraint level. Flag the specific context (internal report, NASA deliverable, etc.) as it affects register expectations. Use `other` type in `corpus.yaml` with an explanatory note.
+**Technical report / white paper** — institutional or project documentation. Variable constraint level. Flag the specific context (internal report, NASA deliverable, etc.) as it affects register expectations. Use the `other` type with an explanatory note via `corpus.py --set-notes`.
 
-**Extended abstract / conference paper** — compressed format. Useful for syntax and vocabulary dimensions; less useful for large-scale organizational structure. Use `journal_paper` type in `corpus.yaml`.
+**Extended abstract / conference paper** — compressed format. Useful for syntax and vocabulary dimensions; less useful for large-scale organizational structure. Register with the `journal_paper` type.
 
-**Technical email** — informal professional writing in `.txt` format. The lowest-scaffold document type: captures the reasoning style that operates when no genre conventions apply. High diagnostic value for transition logic, vocabulary, and as the floor anchor for register modulation. Organize into thematic groupings rather than individual threads, using the `sublabel` field in `corpus.yaml` to distinguish:
+**Technical email** — informal professional writing in `.txt` format. The lowest-scaffold document type: captures the reasoning style that operates when no genre conventions apply. High diagnostic value for transition logic, vocabulary, and as the floor anchor for register modulation. Organize into thematic groupings rather than individual threads, distinguishing in the document's notes:
 
 - `peer scientific discussion` — substantive exchanges with collaborators; highest raw voice signal
 - `proposal and pitch discussion` — emails explaining research direction to program managers or collaborators
 - `student and mentoring correspondence` — explanatory writing; high signal for semantic style and analogy use
 - `other` — specify in notes
 
-**Other** — specify the document type and constraint level explicitly in `corpus.yaml` notes before proceeding with extraction.
+**Other** — specify the document type and constraint level explicitly in the document's notes (`corpus.py --set-notes`) before proceeding with extraction.
 
-### Weighting system
+### How documents contribute
 
-The contribution of each document to the voice analysis is controlled by four factors that multiply together, then normalize per dimension:
-
-```
-effective_weight = (type_weight × confidence × temporal_weight × diagnostic_value) / prose_tokens
-```
-
-- **type_weight** — set globally in `corpus.yaml` under `type_weights`. Reflects your trust in each document *category* given your specific corpus situation. Increase `technical_email` to emphasize rawest personal style.
-- **confidence** — set per document (1–5 scale). Reflects how representative this specific document is of your voice at its most characteristic. See `corpus.yaml` for scale definition.
-- **temporal_weight** — set globally via `temporal.mode` in `corpus.yaml`. Either `uniform` (all periods equal) or `recency` (exponential decay by document age, tunable via `recency_halflife`).
-- **diagnostic_value** — fixed by the Document Type Matrix below. Encodes how diagnostic each document type is for each dimension. Not user-tunable.
-- **prose_tokens** — computed automatically by `count_tokens.py`. Normalizes for document length so high-volume document types do not drown out low-volume ones.
+Documents contribute evenly. There is no weighting formula — no type weight, no per-document confidence rating, no token normalization. The only structural signal is the Document Type Matrix below, which records *which dimensions each document type is diagnostic for* (a paper reveals quantitative integration; a letter of rec reveals argumentation under no scaffolding). Use the matrix to read each document for the dimensions it is best placed to reveal, and let a pattern earn its place in the `SKILL.md` by recurring consistently across documents — not by any numeric weight.
 
 ---
 
@@ -112,7 +95,7 @@ A minimum viable corpus for a complete analysis:
 - At least 1 letter of recommendation, if available
 - At least 1 technical email grouping, if available — even a modest volume here adds disproportionate signal given its position at the low-scaffold end of the spectrum
 
-Chronological spread matters. Use `year` or `year_range` fields in `corpus.yaml` to record when each document was written. If voice evolution over time is a concern, enable `recency` mode in `corpus.yaml` rather than manually selecting recent-only documents — this preserves the full corpus while mathematically down-weighting older material.
+Chronological spread matters. If voice evolution over time is a concern, prefer a corpus drawn from a span you consider representative of your current voice. Documents contribute evenly, so there is no automatic temporal down-weighting — curate the corpus to the period you want reflected.
 
 ---
 

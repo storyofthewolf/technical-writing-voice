@@ -1,6 +1,10 @@
 # technical-writing-voice
 
-A pipeline for extracting a scientist's technical writing voice from a corpus of their own documents and encoding it as a `SKILL.md` for use in a Claude Project. The result is a persistent voice model that Claude applies whenever writing on the author's behalf — papers, proposals, reviews, emails, and other technical writing.
+A pipeline for extracting a scientist's technical writing voice from a corpus of their own documents and encoding it as **purpose-specific `SKILL.md` files** — one per writing context. The result is a set of voice skills Claude applies when writing on the author's behalf.
+
+**Profiles.** The pipeline no longer targets one monolithic skill. `profiles.yaml` defines a separate, narrow skill per writing purpose. The primary profile is **`paper`**: a slim manuscript-writing voice built from journal papers and proposals only, designed for **Claude Code to load when editing a GitHub-backed Overleaf/LaTeX repository**. It governs prose voice and argument structure; LaTeX, `.bib`, and figure markup are left to Claude's standard conventions. Informal registers (emails, letters, statements) are intentionally out of scope — that personal-touch writing resists AI help, whereas formal manuscript prose is where assistance pays off.
+
+The original general-purpose `SKILL.md` and its templates remain in the repo (legacy mode, used automatically if `profiles.yaml` is removed), but the workflow below is written for the profile model. Where the docs below say "SKILL.md," read it as "the selected profile's `SKILL.md`" (default: `skills/paper/SKILL.md`), and add `--profile NAME` to `skill.py` commands to target a specific profile.
 
 ---
 
@@ -22,7 +26,7 @@ The pipeline has three stages. Each stage produces an output that feeds the next
 
 ```
 Stage 1 — Registration
-  corpus.py           Register PDF/TXT documents; set type, confidence, notes
+  corpus.py           Register PDF/TXT documents; set type, notes
 
 Stage 2 — Extraction (one document at a time)
   extract.py          Strip document to plain text; generate extraction prompt
@@ -111,13 +115,12 @@ Use **claude-sonnet-4-6** for all sessions. It has sufficient context window for
 
 ### Stage 1 — Register your documents
 
-Register each source document before doing anything else. Registration records the file path, document type, confidence rating, and any notes in `corpus_state.yaml`.
+Register each source document before doing anything else. Registration records the file path, document type, and any notes in `corpus_state.yaml`.
 
 ```bash
-# Register a single document with full metadata
+# Register a single document with metadata
 python corpus.py --add pdfs/wolf_2022.pdf \
     --type journal_paper \
-    --confidence 4 \
     --notes "sole author, high signal"
 
 # Register a whole directory (defaults applied — update metadata afterward)
@@ -125,7 +128,6 @@ python corpus.py --add pdfs/
 
 # Update metadata on an already-registered document
 python corpus.py --set-type wolf_2022 journal_paper
-python corpus.py --set-confidence wolf_2022 4
 python corpus.py --set-notes wolf_2022 "sole author, high signal"
 
 # Check current corpus status
@@ -135,15 +137,7 @@ python corpus.py
 **Document types:**
 `journal_paper`, `proposal`, `research_statement`, `letter_of_rec`, `review_perspective`, `technical_email`, `other`
 
-**Confidence scale** — reflects your editorial control over the document, not writing quality:
-
-| Rating | Meaning |
-|--------|---------|
-| 5 | Exemplary: sole author, clearest expression of your voice |
-| 4 | Strong: clearly yours, minor stylistic compromises |
-| 3 | Typical: representative but unremarkable |
-| 2 | Weak: heavily co-authored, constrained format, or early career |
-| 1 | Marginal: include for coverage only |
+**All documents contribute evenly.** There is no confidence rating or weighting — a pattern earns its place by recurring across documents, not by any per-document score. Token counts are recorded only as informational corpus size. Curate the corpus for representativeness rather than relying on weights: note co-authorship or constrained formats in `--notes` so extraction can flag sections that read as another author's voice.
 
 ---
 
@@ -156,9 +150,6 @@ Extraction strips a document to plain text and generates a prompt that Claude us
 ```bash
 # Extract a specific document by ID
 python extract.py wolf_2022
-
-# Extract highest-confidence unprocessed document
-python extract.py --priority
 
 # Extract all unprocessed documents at once
 python extract.py --all
@@ -406,13 +397,13 @@ Even a modest email corpus adds disproportionate signal. Technical emails sit at
 
 ### What makes a good corpus
 
-**Sole-authored documents first.** Co-authored documents blend voices. Use them, but weight them lower (confidence 2–3). Include co-authored documents only where you had clear editorial control over specific sections.
+**Sole-authored documents first.** Co-authored documents blend voices. Since all documents contribute evenly, curate rather than weight: include co-authored documents only where you had clear editorial control over specific sections, and note the co-authorship so extraction can flag any sections that read as another author's voice.
 
 **Diversity over volume.** A corpus spanning four document types at 80k tokens is more informative than 400k tokens of journal papers alone. The voice model needs the full register range to assess D9 Register Modulation.
 
-**Recency matters less than you think.** Unless your voice has changed significantly in the last five years, uniform temporal weighting is fine. Voice evolves slowly.
+**Recency matters less than you think.** Unless your voice has changed significantly in the last five years, a corpus drawn from any representative span is fine. Voice evolves slowly.
 
-**High-confidence documents drive the model.** A confidence-5 document at 20k tokens contributes more signal than three confidence-2 documents at the same total length.
+**Curate the corpus deliberately.** With no weighting, the corpus *is* the model: every registered document counts the same, so exclude documents that misrepresent your voice rather than down-rating them.
 
 ### Token guidance
 
@@ -434,9 +425,8 @@ Rough stripped token budgets:
 python corpus.py                                        # status report; auto-marks completed extractions
 python corpus.py --add FILE [FILE ...]                  # register one or more documents
 python corpus.py --add DIR/                             # register all files in a directory
-python corpus.py --add FILE --type TYPE --confidence N --notes TEXT
+python corpus.py --add FILE --type TYPE --notes TEXT
 python corpus.py --set-type DOC_ID TYPE
-python corpus.py --set-confidence DOC_ID N
 python corpus.py --set-notes DOC_ID TEXT
 ```
 
@@ -444,21 +434,39 @@ python corpus.py --set-notes DOC_ID TEXT
 
 ```
 python extract.py DOC_ID [DOC_ID ...]                   # extract specific documents
-python extract.py --priority                            # extract highest-confidence unprocessed doc
 python extract.py --all                                 # extract all unprocessed documents
 python extract.py --mark-done DOC_ID NOTES_FILE         # manual fallback if auto-detect misses a file
 ```
 
 ### skill.py
 
+`--profile NAME` selects the profile from `profiles.yaml` (default: `paper`). Each action targets that profile's output path and `corpus_types`-filtered notes.
+
 ```
-python skill.py --bootstrap                             # synthesis prompt from all processed notes
-python skill.py --refine NOTES_FILE                     # refinement prompt for one notes file
-python skill.py --refine --all                          # refinement prompt for all unrefined notes
-python skill.py --revision INSTRUCTIONS_FILE            # revision prompt from freeform instructions
-python skill.py --apply CLAUDE_RESPONSE                 # write Claude's response to SKILL.md
-python skill.py --overrides                             # inject overrides.yaml into existing SKILL.md
-python skill.py --output FILE                           # write prompt to FILE instead of prompts/
+python skill.py [--profile NAME] --bootstrap                  # synthesis prompt from the profile's notes
+python skill.py [--profile NAME] --refine NOTES_FILE          # refinement prompt for one notes file
+python skill.py [--profile NAME] --refine --all              # refinement prompt for the profile's unrefined notes
+python skill.py [--profile NAME] --revision INSTRUCTIONS_FILE # revision prompt from freeform instructions
+python skill.py [--profile NAME] --apply CLAUDE_RESPONSE      # write Claude's response to the profile's SKILL.md
+python skill.py [--profile NAME] --overrides                  # inject overrides.yaml into the profile's SKILL.md
+python skill.py --output FILE                                 # write prompt to FILE instead of prompts/
+```
+
+### profiles.yaml
+
+Defines each purpose-specific skill. Add an entry to create a new skill; no script changes needed.
+
+```yaml
+default_profile: paper
+profiles:
+  paper:
+    skill_name: eric-wolf-paper-voice
+    purpose: Formal journal-paper and proposal manuscript writing ...
+    corpus_types: [journal_paper, proposal]   # which docs feed this skill
+    synthesis_template: templates/synthesis_paper.md
+    output: skills/paper/SKILL.md
+    target_tokens: 3000                        # length budget given to Claude
+    latex_policy: defer                        # Claude uses its own LaTeX/.bib conventions
 ```
 
 ### overrides.py
