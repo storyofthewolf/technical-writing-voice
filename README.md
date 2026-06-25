@@ -136,7 +136,7 @@ pip install pymupdf tiktoken pyyaml
 
 ### Which Claude model to use
 
-Use **claude-sonnet-4-6** for all sessions. It has sufficient context window for large documents and the pattern recognition the extraction prompt demands. Haiku is too weak for nuanced voice extraction; Opus is unnecessary.
+Use **claude-opus-4-8** for extraction and synthesis. The 14-doc paper baseline was built entirely on Opus (re-extracting earlier Sonnet notes for a model-uniform corpus), and the author judged the result a clear improvement over the prior Sonnet build — richer dimensional coverage and a faithful voice match. Sonnet-4-6 remains workable if cost is a concern (it has sufficient context and pattern recognition for the extraction prompt), but Opus is now the recommended default. Haiku is too weak for nuanced voice extraction.
 
 ### Claude Project setup
 

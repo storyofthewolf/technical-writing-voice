@@ -104,22 +104,20 @@ The two model-driven stages run as project skills in `.claude/skills/` (tracked;
 
 ## Session handoff
 
-**Completed this session (2026-06-24):**
-- Refactored legacy single-SKILL.md mode → per-profile architecture (merged to main)
-- Made all scripts executable; fixed `corpus.py` cwd-relative path bug
-- Renamed skill from `eric-wolf-paper-voice` → generic `paper-voice`
-- Made `archive.py` and `corpus.py` profile-aware to match refactor
-- Hardened extraction framework: first-author-always (no co-author untangling), quote-per-observation discipline (falsifiable notes, no specimen quotes in skills)
-- Built a 5-doc paper-profile baseline skill via `/build-skill` under the hardened framework
-- Documented the out-of-register-documents principle; **declined to build validation corpus** (too complex, offense beats defense)
-- **Prioritized fine-tuning layer** as next major build over conflating corpus types
+**Completed this session (2026-06-24, "build + validate the 14-doc baseline"):**
+- Collected the full paper corpus: registered 8 new PDFs (7 journal papers + 1 proposal) from `~/Desktop/projects/my_corpus/`, reaching 19 total docs / 14 paper-profile docs (12 journal_paper + 2 proposal).
+- Extracted all 9 pending paper docs on **Opus** (`claude-opus-4-8`) one-at-a-time via the `/extract-corpus` steps, with provenance headers.
+- **Re-extracted the 5 prior sonnet paper docs on Opus** for a model-uniform baseline (their `refined_into_skill_paper` flags persisted from the old build — harmless for a bootstrap rebuild). `corpus.py` re-reads notes headers on every status call, so provenance updated to opus automatically.
+- Archived the sonnet-built skill (`archive/run_2026-06-24_*_paper_sonnet_baseline/`, no reset), then **rebuilt `skills/paper/SKILL.md` from all 14 Opus notes** via `/build-skill paper`. Result: 6 full HIGH dimensions (vs 4 in the sonnet build), ~2,300 tokens, failure-mode guardrails baked in.
+- **Deployed two ways:** (1) full skill into the Overleaf repo at `~/Desktop/projects/volcanos/ExoVolcano_ExoCAM_Part1/.claude/skills/paper-voice/SKILL.md` (Overleaf-coupled); (2) a register-only, uploadable claude.ai copy at `skills/paper/paper-voice_browser.md` (frontmatter kept, Overleaf wording removed).
+- Added a `*_browser.md` `.gitignore` rule (commit 78f8912) so derived browser copies are untracked like `SKILL.md`.
+- **Author-validated across 3 browser A/B tests** (paper rewrite, proposal opening, long multi-paragraph passage). Voice transfers faithfully and holds calibration at length. Author judged it "good enough for my Overleaf workflow" (Claude takes a first cut at some descriptive prose; author always reads/cleans).
 
-**Next work (author's chosen sequence):**
-1. Test-drive the baseline `paper-voice` skill (built, local, git-ignored)
-2. Build the full ~14-doc paper-only bootstrap via `/extract-corpus` + `/build-skill paper` (under hardened framework)
-3. Write explicit failure-mode rubric seeded from logged A/B failures (genericity, adverb overuse, "Note that" openers, em-dashes, drifted terminology)
-4. Build the draft→critique→revise fine-tuning loop against that rubric (will eventually take over override injection from `skill.py --apply`)
+**Next work (author's chosen sequence — step 1 & 2 now DONE):**
+1. ~~Build the full 14-doc paper-only baseline~~ — DONE; deployed and validated.
+2. Write the explicit **failure-mode rubric**, now seeded with real test evidence (see `memory/failure-mode-rubric-seeds.md`): em-dash override enforces only ~2-of-3; full author punctuation register = no em-dash / colon / semicolon; register-scope under-reading (self-corrected); plus the pre-existing seeds (genericity, adverb overuse, "Note that" openers, drifted terminology).
+3. Build the draft→critique→revise fine-tuning loop against that rubric, with a **deterministic punctuation post-check (regex)** as the obvious first win — it replaces the leaky prompt-injected override mechanism. Author explicitly deferred adding colons/semicolons to `overrides.yaml` for this reason.
 
 **Open threads:**
-- No tooling yet for **deploying** the built skill into Overleaf repo's `.claude/skills/` (manual `cp` for now)
-- Fine-tuning layer (`draft → critique → revise`) is designed but unbuilt; will be prioritized after 14-doc baseline informs the failure-mode rubric
+- Still no tooling for deploying the built skill into the Overleaf repo — manual `cp` was used this session.
+- Fine-tuning layer remains designed-but-unbuilt; it is now the clear next build (steps 2–3 above).
