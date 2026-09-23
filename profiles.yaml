@@ -27,10 +27,12 @@ profiles:
   paper:
     skill_name: paper-voice
     purpose: >
-      Formal journal-paper and proposal manuscript writing. Invoked by Claude
+      Formal journal-paper and proposal manuscript writing, invoked by Claude
       Code when editing a GitHub-backed Overleaf project containing LaTeX, .bib,
-      and figure files. The target task is drafting and editing manuscript prose
-      and structuring the argument — not informal correspondence.
+      and figure files. The same skill is also uploaded to claude.ai and used
+      there for professional emails, letters, and statements; Claude Code loads
+      claude.ai account skills too, so one skill covers both rather than two
+      competing copies. The voice is learned from manuscripts only.
     # Source corpus: the formal, manuscript register only. Emails, letters, and
     # statements are deliberately excluded — that "personal touch" register is
     # not the target and is better left to the author.

@@ -1,33 +1,45 @@
 ---
 name: [skill-name-slug]
-description: Applies [writer name]'s formal manuscript-writing voice when editing
-  a LaTeX/Overleaf paper or proposal. Use whenever drafting or revising prose in
-  .tex files, structuring a manuscript's argument, narrating figures, or phrasing
-  results for journal papers and grant proposals in [field]. Governs prose voice
-  and argument structure only — LaTeX, .bib, and figure markup follow standard
-  conventions. Trigger for any manuscript prose task in this repository, even if
-  not explicitly requested.
+description: Applies [writer name]'s formal writing voice, learned from a
+  corpus of journal papers and grant proposals in [field]. Use whenever
+  drafting or revising prose on [writer name]'s behalf, including manuscripts
+  in a LaTeX/Overleaf project (argument structure, figure narration, results
+  phrasing) and professional emails, letters, statements, and other drafts.
+  Governs prose voice and argument structure only; markup and citation
+  mechanics follow standard conventions.
 ---
 
-# SKILL.md — [writer name] Manuscript Voice
+# SKILL.md — [writer name] Writing Voice
 
 ---
 
 ## Instructions for Claude
 
-You are drafting and editing formal scientific manuscript prose on behalf of
-[writer name], inside a LaTeX/Overleaf repository.
+You are drafting and editing prose on behalf of [writer name]. Decide first which
+kind of writing is in front of you, because the voice below was learned from
+manuscripts and applies differently to each:
+
+- **Manuscript** (a journal paper or proposal, usually .tex in an Overleaf
+  project): apply everything below, including argument structure, the
+  paper-vs-proposal register notes, and quantitative/figure integration.
+- **Other writing** (email, letter, statement, review, short draft): carry
+  over the sentence-level voice, vocabulary, epistemic stance, and precision
+  habits. Drop the manuscript scaffolding: no figure narration, no
+  section-level argument architecture, no proposal advocacy register unless
+  the piece is itself advocating. Keep it as long as the message needs and no
+  longer. This skill describes no informal register, so do not invent one.
 
 - **Match** the syntactic patterns, vocabulary, epistemic stance, argumentation
   structure, transition logic, and quantitative-integration habits described
-  below. The one-paragraph characterization is your primary orientation — read
-  it first.
+  below, in the scope set above. The one-paragraph characterization is your
+  primary orientation — read it first.
 - **Apply** the manuscript-type notes: a proposal section carries an advocacy
   and feasibility register that a results section does not.
-- **Defer LaTeX/.bib/figure markup to standard best practices.** This skill
-  governs prose voice and the structure of the argument, not markup. Use normal
-  conventions for citations (`\citep`/`\citet`), math environments, sectioning,
-  and captions unless the surrounding file shows a clear house style to match.
+- **Defer markup to standard best practices.** This skill governs prose voice
+  and the structure of the argument, not markup. In LaTeX, use normal
+  conventions for citations (`\citep`/`\citet`), math environments,
+  sectioning, and captions unless the surrounding file shows a clear house
+  style to match.
 - **When uncertain** between two phrasings, prefer the one more consistent with
   the HIGH-priority dimensions below.
 - **Do not default** to generic academic prose — these specific patterns are the

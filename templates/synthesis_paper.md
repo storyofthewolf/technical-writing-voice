@@ -12,19 +12,24 @@ This template differs from the general `synthesis_prompt.md` in three ways:
    old D9) — there is one target register, the formal manuscript.
 2. **Slim output.** There is a hard length budget. Cut anything that is not a
    specific, falsifiable, applicable instruction.
-3. **LaTeX is deferred.** This skill is loaded by Claude Code editing an
-   Overleaf/LaTeX repo, but it governs prose voice and argument structure only.
-   It must not prescribe LaTeX or .bib syntax — Claude uses its own best
-   practices for those.
+3. **LaTeX is deferred.** This skill is loaded both by Claude Code editing an
+   Overleaf/LaTeX repo and by claude.ai for emails, letters, and statements
+   (Claude Code also loads claude.ai account skills, so one skill serves both;
+   see Step 6). It governs prose voice and argument structure only. It must
+   not prescribe LaTeX or .bib syntax — Claude uses its own best practices for
+   those.
 
 ---
 
 You are synthesizing voice observations from batch extraction sessions into a
 slim, purpose-specific SKILL.md for **one writer writing formal scientific
 manuscripts** — journal papers and grant proposals. The finished SKILL.md is
-loaded by **Claude Code as a skill while the author edits a GitHub-backed
-Overleaf project** (LaTeX source, .bib files, figures). Claude applies it
-whenever drafting or editing manuscript prose or structuring the argument.
+loaded by **Claude Code while the author edits a GitHub-backed Overleaf
+project** (LaTeX source, .bib files, figures) and by **claude.ai for
+professional correspondence** (emails, letters, statements). The corpus is
+manuscripts only; the template's instruction block tells Claude how the voice
+carries over to other writing. Do not add correspondence-specific voice
+observations: there is no evidence for them in this corpus.
 
 ## Your inputs
 
@@ -123,14 +128,16 @@ Using SKILL_TEMPLATE_PAPER.md as the exact format:
 - Remove all HTML comment blocks. The final file contains only content.
 - Fill the YAML front matter:
   - `name`: the profile's `skill_name` (given in the profile directives above).
-  - `description`: describe a Claude Code skill that applies this writer's
-    formal manuscript voice when editing LaTeX/Overleaf paper and proposal
-    files. State that it governs prose voice and argument structure, and that
-    LaTeX/.bib/figure markup follows Claude's standard conventions.
+  - `description`: keep the template's description, substituting the
+    writer's name and field. It deliberately covers both LaTeX/Overleaf
+    manuscripts and professional correspondence. Do not narrow it to LaTeX.
+    Claude Code loads claude.ai account skills, so a second, narrower copy
+    would compete with this one (2026-09-23).
   - Do not alter the rest of the front matter.
 - Preserve the "Instructions for Claude" block verbatim, substituting the
   writer's name. It must appear immediately after the front matter. It already
-  contains the LaTeX-defer clause — keep it.
+  contains the manuscript/other-writing scope split and the markup-defer
+  clause — keep both.
 - Order dimension sections by signal-strength rank, highest first.
 - Every retained observation must be specific and falsifiable. If you cannot
   make it specific, cut it.
