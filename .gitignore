@@ -5,8 +5,9 @@ corpus_state.yaml
 # Pattern: bootstrap_prompt_YYYY-MM-DD.md, refinement_prompt_DOCID+DOCID_YYYY-MM-DD.md
 prompts/
  
-# Your personal voice model — not part of the pipeline source
-SKILL.md
+# Stray root output (skill.py writes here only for a profile with no `output`).
+# Built skills under skills/<profile>/ ARE tracked: they are the canonical source.
+/SKILL.md
 # Derived browser/paste test copies of a built skill — also generated output
 *_browser.md
  

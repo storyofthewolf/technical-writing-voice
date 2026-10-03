@@ -13,9 +13,7 @@ that profile's real built skill (its `output` path, e.g. skills/paper/SKILL.md),
 plus the shared batch_notes/, prompts/, and corpus_state.yaml. Reset clears only
 that profile's per-profile refinement flags (refined_into_skill_<profile>).
 
-The orphaned root SKILL.md is never archived, reset, or deleted — it is the
-author's personal reference, not a pipeline output. overrides.yaml is likewise
-never touched.
+overrides.yaml is never touched.
 
 Usage:
     python archive.py [--profile NAME]                 # snapshot only

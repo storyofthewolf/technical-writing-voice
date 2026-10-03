@@ -25,7 +25,7 @@ See `README.md` for full workflow documentation.
 - `profiles.yaml` — defines each purpose-specific skill (name, purpose, source `corpus_types`, synthesis template, output path, token budget, `latex_policy`) plus `default_profile`. Add a new entry to create a new skill — no script changes needed. Required: `skill.py` exits with an error if it is absent.
 - `corpus_state.yaml` — tracks all registered documents and their processing state. Incorporation is tracked **per profile** via `refined_into_skill_<profile>` flags.
 - `overrides.yaml` — manual editorial directives; never touched by `archive.py`; injected into the selected profile's `SKILL.md` by `skill.py --apply` or `skill.py --overrides`
-- `skills/<profile>/SKILL.md` — the built voice skill for each profile (e.g. `skills/paper/SKILL.md`). Copy into `.claude/skills/` when ready for Claude Code to load.
+- `skills/<profile>/SKILL.md` — the built voice skill for each profile (e.g. `skills/paper/SKILL.md`). Tracked in git; installed to `~/.claude/skills/` by skill-sync (registry: `~/Desktop/projects/skill-sync/skills.toml`).
 - `templates/` — LLM instruction templates embedded in generated prompts; not modified by scripts
   - `extraction_prompt.md` — voice extraction instructions
   - `synthesis_prompt.md` — general first-time synthesis instructions (default for profiles that don't set their own `synthesis_template`)
@@ -69,7 +69,7 @@ python skill.py --output FILE                                 # write prompt to 
 
 **Auto-mark on status.** `corpus.py`'s `cmd_status()` calls `_auto_mark_done()` first. It scans unprocessed documents, checks whether `batch_notes/notes_{doc_id}.md` exists, and marks any found as `processed=True` with `batch_notes_file` and `processed_date` set. No manual `--mark-done` command needed.
 
-**Archive is profile-aware and never touches overrides.** `archive.py` resolves a profile via `skill.py`'s `load_profile` (default `default_profile`) and copies that profile's `output` skill (saved as `SKILL_<profile>.md`), `batch_notes/`, `prompts/`, and `corpus_state.yaml`. Reset is scoped to the profile's `refined_into_skill_<profile>` flags (it reuses `is_refined`/`set_refined`). It never reads, copies, or modifies `overrides.yaml`, and never archives, resets, or deletes the orphaned root `SKILL.md`. Overrides persist across all reset modes.
+**Archive is profile-aware and never touches overrides.** `archive.py` resolves a profile via `skill.py`'s `load_profile` (default `default_profile`) and copies that profile's `output` skill (saved as `SKILL_<profile>.md`), `batch_notes/`, `prompts/`, and `corpus_state.yaml`. Reset is scoped to the profile's `refined_into_skill_<profile>` flags (it reuses `is_refined`/`set_refined`). It never reads, copies, or modifies `overrides.yaml`. Overrides persist across all reset modes.
 
 **Conflict detection stops the apply.** If Claude's response contains `## CONFLICT REVIEW`, `skill.py --apply` prints the conflict and exits without writing the profile's `SKILL.md` or updating state. Conflict detection is skipped for `--revision` responses.
 

@@ -377,7 +377,7 @@ Overrides appear in `SKILL.md` as a `## Manual Overrides` section at the end of 
 
 ### Archiving and resetting
 
-Use `archive.py` to snapshot a profile's pipeline state before a reset or a major change. It is profile-aware (`--profile NAME`, default: `default_profile`). Archives capture the profile's built skill (its `output`, e.g. `skills/paper/SKILL.md`, saved as `SKILL_<profile>.md`), plus the shared `batch_notes/`, `prompts/`, and `corpus_state.yaml`. The orphaned root `SKILL.md` and `overrides.yaml` are never archived or reset.
+Use `archive.py` to snapshot a profile's pipeline state before a reset or a major change. It is profile-aware (`--profile NAME`, default: `default_profile`). Archives capture the profile's built skill (its `output`, e.g. `skills/paper/SKILL.md`, saved as `SKILL_<profile>.md`), plus the shared `batch_notes/`, `prompts/`, and `corpus_state.yaml`. `overrides.yaml` is never archived or reset.
 
 ```bash
 # Snapshot only (safe checkpoint before any change)
