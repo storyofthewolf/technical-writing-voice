@@ -113,6 +113,8 @@ The two model-driven stages run as project skills in `.claude/skills/` (tracked;
 - Added a `*_browser.md` `.gitignore` rule (commit 78f8912) so derived browser copies are untracked like `SKILL.md`.
 - **Author-validated across 3 browser A/B tests** (paper rewrite, proposal opening, long multi-paragraph passage). Voice transfers faithfully and holds calibration at length. Author judged it "good enough for my Overleaf workflow" (Claude takes a first cut at some descriptive prose; author always reads/cleans).
 
+**Status 2026-10-18: maintenance mode.** The skill does its job and the author judged further work not worth the token cost. Steps 2 and 3 below are on hold indefinitely and public sharing is dropped. Touch the repo only to rebuild after adding a paper, or on a specific request.
+
 **Next work (author's chosen sequence — step 1 & 2 now DONE):**
 1. ~~Build the full 14-doc paper-only baseline~~ — DONE; deployed and validated.
 2. Write the explicit **failure-mode rubric**, now seeded with real test evidence (see `memory/failure-mode-rubric-seeds.md`): em-dash override enforces only ~2-of-3; full author punctuation register = no em-dash / colon / semicolon; register-scope under-reading (self-corrected); plus the pre-existing seeds (genericity, adverb overuse, "Note that" openers, drifted terminology).
