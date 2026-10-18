@@ -338,3 +338,4 @@ dimensions outside results-reporting.
 ## Manual Overrides
 
 1. Never in any circumstance use em dashes.
+2. Use colons and semicolons sparingly, and most paragraphs should contain none. Where a semicolon would join two clauses, write two sentences or join them with a comma and a conjunction. Where a colon would introduce an explanation or list, write a full lead-in sentence instead. Never use a colon or semicolon as the replacement for a banned em dash. Use a period, a comma, or parentheses. Keep a colon only where convention requires it (ratios, times, titles, a displayed list or equation).
