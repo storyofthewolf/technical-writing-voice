@@ -121,3 +121,4 @@ The two model-driven stages run as project skills in `.claude/skills/` (tracked;
 **Open threads:**
 - Still no tooling for deploying the built skill into the Overleaf repo — manual `cp` was used this session.
 - Fine-tuning layer remains designed-but-unbuilt; it is now the clear next build (steps 2–3 above).
+- `skills/paper/SKILL.md` was hand-rewritten 2026-10-18 without colons, semicolons, or em dashes (commit f034bbd). `core/SKILL_TEMPLATE_PAPER.md` and `templates/synthesis_paper.md` were NOT updated, so a `/build-skill` rebuild will reintroduce that punctuation. Clean those first before rebuilding. Author deferred this as not worth the token cost for now.
