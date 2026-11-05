@@ -25,7 +25,7 @@ See `README.md` for full workflow documentation.
 - `profiles.yaml` — defines each purpose-specific skill (name, purpose, source `corpus_types`, synthesis template, output path, token budget, `latex_policy`) plus `default_profile`. Add a new entry to create a new skill — no script changes needed. Required: `skill.py` exits with an error if it is absent.
 - `corpus_state.yaml` — tracks all registered documents and their processing state. Incorporation is tracked **per profile** via `refined_into_skill_<profile>` flags.
 - `overrides.yaml` — manual editorial directives; never touched by `archive.py`; injected into the selected profile's `SKILL.md` by `skill.py --apply` or `skill.py --overrides`
-- `skills/<profile>/SKILL.md` — the built voice skill for each profile (e.g. `skills/paper/SKILL.md`). Tracked in git; installed to `~/.claude/skills/` by skill-sync (registry: `~/Desktop/projects/skill-sync/skills.toml`).
+- `skills/<profile>/SKILL.md` — the built voice skill for each profile (e.g. `skills/paper/SKILL.md`). Tracked in git; installed to `~/.claude/skills/` by skill-sync (registry: `~/Research/tools/skill-sync/skills.toml`).
 - `templates/` — LLM instruction templates embedded in generated prompts; not modified by scripts
   - `extraction_prompt.md` — voice extraction instructions
   - `synthesis_prompt.md` — general first-time synthesis instructions (default for profiles that don't set their own `synthesis_template`)
