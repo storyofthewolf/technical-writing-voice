@@ -1,4 +1,12 @@
-# Corpus state — auto-generated, contains local file paths
+# Per-author corpus workspaces: state, notes, stripped text, prompts, archive,
+# overrides, validation, and any local-only built skill. Never committed.
+corpora/
+
+# Local-only corpora and profiles (e.g. another author's voice), merged over
+# profiles.yaml by paths.py.
+profiles.local.yaml
+
+# Legacy root-level locations (pre-corpora layout)
 corpus_state.yaml
  
 # Generated LLM session prompts — assembled at runtime by skill.py, land in /prompts
@@ -36,10 +44,12 @@ venv/
 *.txt
 
 # Claude Code: ignore local settings, but TRACK project skills — the
-# extract-corpus workflow skill is load-bearing pipeline machinery.
+# project skills is load-bearing pipeline machinery.
 .claude/*
 !.claude/skills/
 !.claude/skills/**
 .claude/settings.local.json
 
 overrides.yaml
+# ...except dependency lists
+!requirements.txt

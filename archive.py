@@ -3,17 +3,17 @@
 """
 archive.py
 ----------
-Snapshot one profile's pipeline state into
-archive/run_YYYY-MM-DD_HHMMSS[_label]/, then optionally reset it so the next
-build starts fresh.
+Snapshot one profile's pipeline state into its corpus's
+corpora/<corpus>/archive/run_YYYY-MM-DD_HHMMSS_<profile>[_label]/, then
+optionally reset it so the next build starts fresh.
 
 Profile-aware: the profile is resolved from profiles.yaml exactly as skill.py
 resolves it (--profile NAME, default: default_profile). The snapshot captures
 that profile's real built skill (its `output` path, e.g. skills/paper/SKILL.md),
-plus the shared batch_notes/, prompts/, and corpus_state.yaml. Reset clears only
-that profile's per-profile refinement flags (refined_into_skill_<profile>).
+plus its corpus's batch_notes/, prompts/, and corpus_state.yaml. Reset clears
+only that profile's per-profile refinement flags (refined_into_skill_<profile>).
 
-overrides.yaml is never touched.
+The corpus's overrides.yaml is never touched.
 
 Usage:
     python archive.py [--profile NAME]                 # snapshot only
@@ -24,7 +24,8 @@ Usage:
 Reset modes (scoped to the selected profile):
     soft  — delete the profile's SKILL.md; set refined_into_skill_<profile>=False
             on all matching docs; leave processed flags and batch notes untouched.
-    full  — delete the profile's SKILL.md; delete batch_notes/; reset all docs to
+    full  — delete the profile's SKILL.md; delete the corpus's batch_notes/;
+            reset all docs to
             processed=False and refined_into_skill_<profile>=False; clear
             batch_notes_file and processed_date fields.
 
@@ -37,13 +38,12 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from skill import HERE, load_profile, is_refined, set_refined
+from paths import HERE
+from skill import load_profile, is_refined, set_refined
 from corpus import load_state, save_state
 
-ARCHIVE_DIR = HERE / "archive"
-BATCH_NOTES_DIR = HERE / "batch_notes"
-PROMPTS_DIR = HERE / "prompts"
-STATE_FILE = HERE / "corpus_state.yaml"
+# Set from the selected profile's corpus in main().
+ARCHIVE_DIR = BATCH_NOTES_DIR = PROMPTS_DIR = STATE_FILE = None
 
 
 def make_run_dir(profile_name: str, label: str) -> Path:
@@ -152,6 +152,10 @@ Examples:
     args = parser.parse_args()
 
     profile = load_profile(args.profile)
+    global ARCHIVE_DIR, BATCH_NOTES_DIR, PROMPTS_DIR, STATE_FILE
+    c = profile.corpus
+    ARCHIVE_DIR, BATCH_NOTES_DIR = c.archive_dir, c.batch_notes_dir
+    PROMPTS_DIR, STATE_FILE = c.prompts_dir, c.state_file
 
     run_dir = make_run_dir(profile.name, args.label)
     do_snapshot(run_dir, profile.output)

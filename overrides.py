@@ -3,13 +3,16 @@
 """
 overrides.py
 ------------
-Manage manual overrides for voice refinement. Overrides are stored in
-overrides.yaml at the project root and injected as a ## Manual Overrides section
+Manage manual overrides for voice refinement. Overrides are stored per corpus
+in corpora/<corpus>/overrides.yaml and injected as a ## Manual Overrides section
 into the profile's SKILL.md by skill.py --apply / --overrides. They are
 post-processing only and are never included in prompts sent to Claude.
 
+Select the corpus with --corpus NAME or --profile NAME before the subcommand
+(default: the default profile's corpus).
+
 Usage:
-    python overrides.py list
+    python overrides.py [--corpus NAME] list
     python overrides.py add "Always spell out numbers below ten."
     python overrides.py add --category syntax "Prefer active voice in methods."
     python overrides.py remove OVERRIDE_ID
@@ -20,22 +23,18 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-import yaml
+from paths import add_selector_args, load_corpus, read_yaml, write_yaml
 
-OVERRIDES_FILE = Path(__file__).parent / "overrides.yaml"
+OVERRIDES_FILE = None  # set from the selected corpus in main()
 
 
 def load_overrides() -> list:
-    if not OVERRIDES_FILE.exists():
-        return []
-    with open(OVERRIDES_FILE) as f:
-        data = yaml.safe_load(f) or []
+    data = read_yaml(OVERRIDES_FILE, [])
     return data if isinstance(data, list) else []
 
 
 def save_overrides(overrides: list) -> None:
-    with open(OVERRIDES_FILE, "w") as f:
-        yaml.dump(overrides, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    write_yaml(OVERRIDES_FILE, overrides)
 
 
 def _next_id(overrides: list) -> str:
@@ -100,6 +99,7 @@ Examples:
   python overrides.py remove ov001
         """
     )
+    add_selector_args(parser)
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("list", help="List all overrides")
@@ -117,6 +117,8 @@ Examples:
         parser.print_help()
         sys.exit(0)
 
+    global OVERRIDES_FILE
+    OVERRIDES_FILE = load_corpus(args.corpus, args.profile).overrides_file
     overrides = load_overrides()
 
     if args.command == "list":

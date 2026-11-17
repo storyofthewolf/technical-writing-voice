@@ -12,15 +12,15 @@ this file explains *why* the pieces are shaped the way they are.
 ```
    register            extract                    synthesize
    ────────            ───────                    ──────────
-   corpus.py     →     /extract-corpus      →     /build-skill        →   skills/<profile>/SKILL.md
-   (PDF/TXT)           (per-doc notes)            (one skill per profile)
+   corpus.py     →     /extract-voice-notes      →     /synthesize-voice        →   skills/<profile>/SKILL.md
+   (PDF/DOCX/TXT)      (per-doc or batch notes)          (one skill per profile)
 ```
 
 1. **Registration** (`corpus.py`) — deterministic. Strips token counts, records
    document type and notes in `corpus_state.yaml`. No model involved.
-2. **Extraction** (`/extract-corpus`) — per-document voice observations written to
+2. **Extraction** (`/extract-voice-notes`) — per-document voice observations written to
    `batch_notes/notes_{doc}.md`. Model-driven, **sharded**.
-3. **Synthesis** (`/build-skill`) — collapses notes into a purpose-specific
+3. **Synthesis** (`/synthesize-voice`) — collapses notes into a purpose-specific
    `SKILL.md`. Model-driven, **whole-context**.
 
 Stages 2 and 3 used to require a claude.ai copy-paste round-trip. Both now run in
@@ -39,6 +39,49 @@ which synthesis template, which output format, which `corpus_types` feed it, and
 where the result is written. Incorporation is tracked per profile via
 `refined_into_skill_<profile>` flags, so building one skill never marks documents
 done for another.
+
+---
+
+## Corpora: one workspace per author
+
+Since 2026-11 the pipeline serves more than one author. Each author's corpus is
+a self-contained workspace, `corpora/<name>/`, holding its own
+`corpus_state.yaml`, `overrides.yaml`, `batch_notes/`, `stripped_text/`,
+`prompts/`, `archive/`, and `validation/`. `paths.py` resolves the workspace
+from `--corpus` or `--profile`; every script and project skill goes through it.
+
+Why separate workspaces rather than an `author` field on shared state:
+
+- **Overrides are per author.** One author's punctuation bans must never reach
+  another author's skill. A shared `overrides.yaml` made that impossible.
+- **Privacy is a directory rule.** `corpora/` is gitignored in full, and
+  `profiles.local.yaml` (gitignored) holds any corpus or profile that must not
+  reach GitHub. A local-only profile writes its skill under `corpora/` too.
+- **Domains differ.** A corpus names its document types, its nine-dimension
+  rubric (`dimensions`), its extraction instructions, and its
+  `extraction_mode`. The nine dimensions are kept across domains; only the
+  what-to-look-for questions change (`core/EVALUATION_DIMENSIONS.md` for
+  science, `core/domains/EVALUATION_DIMENSIONS_ADVOCACY.md` for association
+  advocacy writing). The science rubric was left byte-identical so the paper
+  profile's prompts did not change in the migration.
+
+**Batch extraction.** Sharding per document assumes each document is long
+enough to show habits on its own. A 300-word column is not. A corpus with
+`extraction_mode: batch` is read by ONE cold subagent over the whole pending
+set, which counts recurrence ("9 of 14 documents") directly. The notes file's
+header lists `doc_ids`; `corpus.py` marks each covered document from it, and
+`skill.py` embeds a batch file once. Cross-document isolation is traded for
+recurrence counting, which matters more for short documents.
+
+**Holdouts and validation.** `corpus.py --set-holdout` excludes a document from
+extraction and synthesis. `/validate-voice` turns each held-out document into a
+facts-only brief, drafts it with and without the skill in cold subagents, and
+builds a blind comparison for the author. This replaces open-ended A/B tests
+with a test against the author's real text.
+
+**No browser.** Every model step, including freeform revision
+(`/synthesize-voice P revise "..."`), runs in a cold subagent. `extract.py` no
+longer writes paste-ready prompts.
 
 ---
 
@@ -105,10 +148,10 @@ notes even if extraction happened outside the skill.
 
 ---
 
-## Stage 2 — extraction (`/extract-corpus`)
+## Stage 2 — extraction (`/extract-voice-notes`)
 
 ```
-/extract-corpus [targets]
+/extract-voice-notes [targets]
    1. resolve target set (all pending | doc IDs | --profile filter | --force)
         via: python corpus.py --pending [--pending-types ...]
         default: pending only — never silently re-extract finished docs
@@ -127,13 +170,13 @@ Claude Code path and any manual claude.ai run, so they cannot drift.
 
 ---
 
-## Stage 3 — synthesis (`/build-skill`)
+## Stage 3 — synthesis (`/synthesize-voice`)
 
 Scope: `--bootstrap` (from-scratch) and `--refine` (incremental). `--revision`
 (authoritative freeform author edits) stays a manual `skill.py` command.
 
 ```
-/build-skill [--profile paper] [--refine]
+/synthesize-voice [--profile paper] [--refine]
    1. ASSEMBLE (deterministic — skill.py, unchanged)
         bootstrap → all profile notes + synthesis template + skill template
         refine    → unrefined profile notes + current SKILL.md + refinement template

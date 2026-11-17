@@ -5,16 +5,19 @@ skill.py
 --------
 Builds and maintains purpose-specific SKILL.md profiles from corpus batch notes.
 
-Profiles are defined in profiles.yaml (required). Each profile is a narrow voice
-skill aimed at one writing context (e.g. `paper`). The selected profile
-determines which document types feed synthesis, which synthesis instructions are
-used, where the built skill is written, and how the skill handles LaTeX/.bib
-markup.
+Profiles are defined in profiles.yaml (required), merged with the gitignored
+profiles.local.yaml (see paths.py). Each profile is a narrow voice skill aimed
+at one writing context (e.g. `paper`) and built from one corpus. The selected
+profile determines which corpus and document types feed synthesis, which
+synthesis instructions are used, where the built skill is written, and how the
+skill handles markup or format.
+
+The model work between prompt assembly and --apply is done in Claude Code by
+the /synthesize-voice skill (one cold subagent). Nothing is pasted by hand.
 
 Usage:
     python skill.py [--profile NAME] --bootstrap
         First-time synthesis prompt from the profile's processed notes.
-        Paste output into Claude → save response → run --apply.
 
     python skill.py [--profile NAME] --refine FILE
         Refinement prompt comparing a notes file against the profile's SKILL.md.
@@ -32,7 +35,7 @@ Usage:
         Append or replace the ## Manual Overrides section in the profile's SKILL.md.
 
     python skill.py --output FILE
-        Write prompt to FILE instead of the default prompts/ path.
+        Write prompt to FILE instead of the corpus's prompts/ folder.
 
     --profile defaults to profiles.yaml `default_profile`.
 
@@ -46,16 +49,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-import yaml
+import corpus as corpus_mod
+from paths import HERE, load_config, load_corpus, read_yaml, resolve_profile_name
 
-HERE = Path(__file__).parent
-
-OVERRIDES_FILE = HERE / "overrides.yaml"
-STATE_FILE = HERE / "corpus_state.yaml"
-PROFILES_FILE = HERE / "profiles.yaml"
 REFINEMENT_PROMPT_FILE = HERE / "templates" / "refinement_prompt.md"
 REVISION_PROMPT_FILE = HERE / "templates" / "revision_prompt.md"
-EVALUATION_DIMENSIONS_FILE = HERE / "core" / "EVALUATION_DIMENSIONS.md"
 
 # General fallback skill-output template, used by any profile that does not set
 # its own `skill_template` and is not the slim `paper` profile.
@@ -71,6 +69,9 @@ class Profile:
 
     def __init__(self, name: str, data: dict):
         self.name = name
+        self.corpus = load_corpus(corpus=data.get("corpus"))
+        self.writer_name = (data.get("writer_name") or "").strip()
+        self.format_policy = (data.get("format_policy") or "").strip()
         self.skill_name = data.get("skill_name", f"{name}-voice")
         self.purpose = (data.get("purpose") or "").strip()
         self.corpus_types = data.get("corpus_types")  # None = all types
@@ -95,34 +96,24 @@ class Profile:
         return f"refined_into_skill_{self.name}"
 
     def matches_type(self, doc: dict) -> bool:
+        """True if the doc feeds this profile: matching type and not held out."""
+        if doc.get("holdout"):
+            return False
         if not self.corpus_types:
             return True
         return doc.get("type") in self.corpus_types
 
 
 def load_profile(name: str | None) -> Profile:
-    if not PROFILES_FILE.exists():
-        print("ERROR: profiles.yaml not found. It defines the available skill "
-              "profiles and is required.")
-        sys.exit(1)
-
-    with open(PROFILES_FILE) as f:
-        cfg = yaml.safe_load(f) or {}
-    profiles = cfg.get("profiles", {})
-    if not profiles:
+    """Resolve a profile and make its corpus the active one for state I/O."""
+    cfg = load_config()
+    if not cfg["profiles"]:
         print("ERROR: profiles.yaml defines no profiles.")
         sys.exit(1)
-
-    chosen = name or cfg.get("default_profile")
-    if not chosen:
-        print("ERROR: no --profile given and no default_profile in profiles.yaml.")
-        sys.exit(1)
-    if chosen not in profiles:
-        print(f"ERROR: profile '{chosen}' not found in profiles.yaml. "
-              f"Available: {', '.join(sorted(profiles))}")
-        sys.exit(1)
-
-    return Profile(chosen, profiles[chosen])
+    chosen = resolve_profile_name(cfg, name)
+    profile = Profile(chosen, cfg["profiles"][chosen])
+    corpus_mod.set_corpus(profile.corpus)
+    return profile
 
 
 def is_refined(doc: dict, profile: Profile) -> bool:
@@ -138,11 +129,8 @@ def set_refined(doc: dict, profile: Profile, value: bool) -> None:
 # Overrides
 # ---------------------------------------------------------------------------
 
-def load_overrides() -> list:
-    if not OVERRIDES_FILE.exists():
-        return []
-    with open(OVERRIDES_FILE) as f:
-        data = yaml.safe_load(f) or []
+def load_overrides(profile: Profile) -> list:
+    data = read_yaml(profile.corpus.overrides_file, [])
     return data if isinstance(data, list) else []
 
 
@@ -159,12 +147,16 @@ def _overrides_block(overrides: list) -> str:
 # State I/O
 # ---------------------------------------------------------------------------
 
-def load_state() -> dict:
-    if not STATE_FILE.exists():
-        print("ERROR: corpus_state.yaml not found. Run corpus.py --add first.")
+def load_state(profile: Profile) -> dict:
+    if not profile.corpus.state_file.exists():
+        print(f"ERROR: no corpus_state.yaml for corpus '{profile.corpus.name}'. "
+              "Run corpus.py --add first.")
         sys.exit(1)
-    with open(STATE_FILE) as f:
-        return yaml.safe_load(f) or {"documents": []}
+    return read_yaml(profile.corpus.state_file, {"documents": []})
+
+
+def notes_path(doc: dict, profile: Profile) -> Path | None:
+    return profile.corpus.resolve(doc.get("batch_notes_file"))
 
 
 def load_file(path: Path, label: str) -> str:
@@ -222,22 +214,60 @@ def _profile_directives_block(profile: Profile) -> str:
                  "practices. Do NOT prescribe markup conventions in the skill — "
                  "it governs prose voice and argument structure only.",
     }.get(profile.latex_policy, profile.latex_policy)
+    writer = (f"- **Writer name:** {profile.writer_name}\n"
+              if profile.writer_name else "")
+    policy = (f"- **Format policy:** {profile.format_policy}\n"
+              if profile.format_policy else f"- **LaTeX policy:** {latex}\n")
     return f"""## Profile directives (honor these exactly)
 
 - **Profile:** {profile.name}
-- **Skill name (front matter `name`):** {profile.skill_name}
+{writer}- **Skill name (front matter `name`):** {profile.skill_name}
 - **Purpose:** {profile.purpose}
 - **Source corpus types:** {types}
 - **Token budget:** {budget}
-- **LaTeX policy:** {latex}
-"""
+{policy}"""
+
+
+def _notes_block(docs: list[dict], profile: Profile, heading: str = "Batch notes") -> str:
+    """Embed each doc's notes once. A batch notes file covering several docs is
+    embedded a single time under a heading that lists the docs it covers."""
+    by_file: dict = {}
+    order = []
+    for doc in docs:
+        path = notes_path(doc, profile)
+        key = str(path) if path else f"missing:{doc['id']}"
+        if key not in by_file:
+            by_file[key] = (path, [])
+            order.append(key)
+        by_file[key][1].append(doc)
+
+    block = ""
+    for key in order:
+        path, group = by_file[key]
+        if len(group) == 1:
+            doc = group[0]
+            if path and path.exists():
+                content = path.read_text(encoding="utf-8")
+                block += f"\n\n---\n## {heading}: {doc['id']} ({doc.get('type')})\n\n{content}"
+            else:
+                block += f"\n\n---\n## {heading}: {doc['id']}\n[Notes file not found: {doc.get('batch_notes_file')}]"
+        else:
+            covers = ", ".join(f"{d['id']} ({d.get('type')})" for d in group)
+            if path and path.exists():
+                content = path.read_text(encoding="utf-8")
+                block += (f"\n\n---\n## {heading}: batch file {path.name}, "
+                          f"covering {len(group)} documents read together: {covers}\n\n{content}")
+            else:
+                block += f"\n\n---\n## {heading}: [Notes file not found: {key}] covering {covers}"
+    return block
 
 
 def build_bootstrap_prompt(state: dict, profile: Profile) -> str:
     synthesis_prompt = load_file(profile.synthesis_template,
                                  profile.synthesis_template.name)
     skill_template = load_file(profile.skill_template, profile.skill_template.name)
-    eval_dims = load_file(EVALUATION_DIMENSIONS_FILE, "EVALUATION_DIMENSIONS.md")
+    eval_dims = load_file(profile.corpus.dimensions_file,
+                          profile.corpus.dimensions_file.name)
     corpus_stats = compute_corpus_stats(state, profile)
 
     if not corpus_stats["processed_docs"]:
@@ -246,14 +276,7 @@ def build_bootstrap_prompt(state: dict, profile: Profile) -> str:
               f"'{profile.name}'. Register/extract matching documents first.")
         sys.exit(1)
 
-    notes_block = ""
-    for doc in corpus_stats["processed_docs"]:
-        notes_file = doc.get("batch_notes_file")
-        if notes_file and Path(notes_file).exists():
-            notes_content = Path(notes_file).read_text(encoding="utf-8")
-            notes_block += f"\n\n---\n## Batch notes: {doc['id']} ({doc.get('type')})\n\n{notes_content}"
-        else:
-            notes_block += f"\n\n---\n## Batch notes: {doc['id']}\n[Notes file not found: {notes_file}]"
+    notes_block = _notes_block(corpus_stats["processed_docs"], profile)
 
     metadata_block = f"""## Corpus metadata (for SKILL.md header)
 
@@ -310,14 +333,18 @@ def build_refinement_prompt(new_notes_docs: list[dict], state: dict, profile: Pr
 
     new_notes_block = ""
     new_count = len(new_notes_docs)
-    prior_count = corpus_stats["doc_count"]
+    prior_count = corpus_stats["doc_count"] - new_count
 
+    if profile.corpus.extraction_mode == "batch":
+        new_notes_block = _notes_block(new_notes_docs, profile, heading="New batch notes")
     for doc in new_notes_docs:
-        notes_file = doc.get("batch_notes_file")
-        if notes_file and Path(notes_file).exists():
-            notes_content = Path(notes_file).read_text(encoding="utf-8")
+        if profile.corpus.extraction_mode == "batch":
+            break
+        path = notes_path(doc, profile)
+        if path and path.exists():
+            notes_content = path.read_text(encoding="utf-8")
         else:
-            notes_content = f"[Notes file not found: {notes_file}]"
+            notes_content = f"[Notes file not found: {doc.get('batch_notes_file')}]"
 
         new_notes_block += f"""
 ---
@@ -419,8 +446,7 @@ def print_conflict(response_text: str) -> None:
     print("\nTo resolve:")
     print("  1. Review the conflict above")
     print("  2. Edit the batch notes or SKILL.md as appropriate")
-    print("  3. Rerun: python skill.py --apply <claude_response>")
-    print("     with a revised Claude response that resolves the conflict")
+    print("  3. Rerun /synthesize-voice (or skill.py --apply on a revised response)")
 
 
 # ---------------------------------------------------------------------------
@@ -455,7 +481,7 @@ def cmd_apply(response_file: str, state: dict, profile: Profile) -> None:
         print(f"\n{profile.output.name} was NOT updated. Resolve the conflict first.")
         return
 
-    response_text = _inject_overrides(response_text, _overrides_block(load_overrides()))
+    response_text = _inject_overrides(response_text, _overrides_block(load_overrides(profile)))
 
     profile.output.parent.mkdir(parents=True, exist_ok=True)
     profile.output.write_text(response_text, encoding="utf-8")
@@ -470,8 +496,7 @@ def cmd_apply(response_file: str, state: dict, profile: Profile) -> None:
             updated += 1
 
     if updated:
-        from corpus import save_state
-        save_state(state)
+        corpus_mod.save_state(state)
         print(f"Marked {updated} document(s) as incorporated into "
               f"{profile.output.name} (profile: {profile.name}).")
 
@@ -481,9 +506,9 @@ def cmd_overrides(profile: Profile) -> None:
         print(f"ERROR: {profile.output.relative_to(HERE)} not found. Run --bootstrap first.")
         sys.exit(1)
 
-    overrides = load_overrides()
+    overrides = load_overrides(profile)
     if not overrides:
-        print("No overrides found in overrides.yaml — nothing to do.")
+        print(f"No overrides for corpus '{profile.corpus.name}' — nothing to do.")
         return
 
     skill_text = profile.output.read_text(encoding="utf-8")
@@ -524,7 +549,7 @@ def main():
         cmd_overrides(profile)
         return
 
-    state = load_state()
+    state = load_state(profile)
 
     if args.apply:
         cmd_apply(args.apply, state, profile)
@@ -565,14 +590,14 @@ def main():
         else:
             # Specific notes file
             notes_file = args.refine
+            target = Path(notes_file).resolve()
             matching = [
                 d for d in state["documents"]
-                if d.get("batch_notes_file") == notes_file or
-                   d.get("batch_notes_file") == str(Path(notes_file))
+                if notes_path(d, profile) and notes_path(d, profile).resolve() == target
             ]
             if not matching:
                 print(f"ERROR: No document found with notes file: {notes_file}")
-                print("Make sure you ran: python extract.py --mark-done DOC_ID NOTES_FILE")
+                print("Run 'python corpus.py' first so new notes are recorded.")
                 sys.exit(1)
             off_type = [d for d in matching if not profile.matches_type(d)]
             if off_type:
@@ -586,8 +611,8 @@ def main():
         parser.print_help()
         return
 
-    PROMPTS_DIR = HERE / "prompts"
-    PROMPTS_DIR.mkdir(exist_ok=True)
+    PROMPTS_DIR = profile.corpus.prompts_dir
+    PROMPTS_DIR.mkdir(parents=True, exist_ok=True)
 
     if args.output:
         out_path = Path(args.output)
@@ -601,7 +626,6 @@ def main():
 
     out_path.write_text(prompt, encoding="utf-8")
     print(f"Prompt written to: {out_path}")
-    print(f"Upload {out_path.name} to Claude → save response → run: python skill.py --apply <response_file>")
 
 
 if __name__ == "__main__":

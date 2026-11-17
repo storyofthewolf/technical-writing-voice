@@ -50,10 +50,8 @@ voice-invariant (would appear across all this writer's output).
 
 ## Output format
 
-Produce one notes file named as specified in the `output_file` field of the
-prompt front matter (e.g. `notes_DOCID.md`). In Claude Code, write it directly to
-`batch_notes/notes_DOCID.md`; in a claude.ai session, return it as a downloadable
-markdown artifact with that name.
+Produce one notes file, written directly to the corpus's
+`batch_notes/notes_DOCID.md` path given in your task.
 
 The file MUST begin with a YAML front-matter header recording how the extraction
 was made — this is the provenance the pipeline reads back to populate corpus

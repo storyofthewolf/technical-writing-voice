@@ -3,63 +3,32 @@
 """
 extract.py
 ----------
-Strips one or more documents to plain text and writes a ready-to-paste
-extraction prompt to batch_notes/. You paste the prompt into a Claude session,
-save Claude's response as the batch notes file, then mark the document processed.
+Strips registered documents to plain text in the corpus's stripped_text/
+folder. The model read itself (writing batch_notes/) is done in Claude Code by
+the /extract-voice-notes skill, which calls this script first. Nothing here is
+pasted anywhere by hand.
 
 Usage:
-    python extract.py DOC_ID [DOC_ID ...]    # extract specific documents
-    python extract.py --all                  # extract all unprocessed documents
+    python extract.py [--corpus NAME | --profile NAME] DOC_ID [DOC_ID ...]
+    python extract.py [--corpus NAME | --profile NAME] --all     # all unprocessed
+    python extract.py ... --force DOC_ID      # re-strip even if text exists
 
-After running:
-    1. Open the generated prompt file in batch_notes/prompt_[DOC_ID].md
-    2. Paste it into a Claude session (with no other context needed)
-    3. Save Claude's full response as batch_notes/notes_[DOC_ID].md
-    4. Run: python extract.py --mark-done DOC_ID batch_notes/notes_[DOC_ID].md
+Supported inputs: .pdf (cleaned of running heads, references, figure noise),
+.docx (paragraphs in order, headings as "## ", list items as "- ", tables as
+" | "-joined rows), .txt (as-is).
 
 Dependencies:
-    pip install pymupdf tiktoken pyyaml
+    uv pip install pymupdf tiktoken pyyaml python-docx
 """
 
 import argparse
+import re
 import sys
-from datetime import datetime
 from pathlib import Path
 
-import re
-
 import fitz
-import yaml
 
-HERE = Path(__file__).parent
-STATE_FILE = HERE / "corpus_state.yaml"
-BATCH_NOTES_DIR = HERE / "batch_notes"
-STRIPPED_TEXT_DIR = HERE / "stripped_text"
-EXTRACTION_PROMPT_FILE = HERE / "templates" / "extraction_prompt.md"
-
-
-# ---------------------------------------------------------------------------
-# State I/O
-# ---------------------------------------------------------------------------
-
-def load_state() -> dict:
-    if not STATE_FILE.exists():
-        print("ERROR: corpus_state.yaml not found. Run corpus.py --add first.")
-        sys.exit(1)
-    with open(STATE_FILE) as f:
-        return yaml.safe_load(f) or {"documents": []}
-
-
-def save_state(state: dict) -> None:
-    with open(STATE_FILE, "w") as f:
-        yaml.dump(state, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-
-
-def load_extraction_prompt() -> str:
-    if not EXTRACTION_PROMPT_FILE.exists():
-        print(f"ERROR: {EXTRACTION_PROMPT_FILE} not found.")
-        sys.exit(1)
-    return EXTRACTION_PROMPT_FILE.read_text(encoding="utf-8")
+from paths import add_selector_args, load_corpus, read_yaml
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +236,70 @@ def extract_text_pdf(filepath: Path) -> str:
         return ""
 
 
+def extract_text_docx(filepath: Path) -> str:
+    """
+    Extract a .docx body in document order. Headings become "## text", list
+    paragraphs become "- text", and table rows become " | "-joined cells, so
+    layout that carries voice (headed sections, bullet lists, results tables)
+    survives as plain-text markers. Headers, footers, and comments are not read.
+    Boilerplate (letterhead, contact blocks) is kept: the orchestrator's strip
+    check flags it rather than this script guessing.
+    """
+    try:
+        import docx
+        from docx.table import Table
+        from docx.text.paragraph import Paragraph
+    except ImportError:
+        print("  ERROR: python-docx not installed (uv pip install python-docx)")
+        return ""
+    try:
+        document = docx.Document(str(filepath))
+    except Exception as e:
+        print(f"  WARNING: Could not open {filepath}: {e}")
+        return ""
+
+    out = []
+    body = document.element.body
+    for child in body.iterchildren():
+        tag = child.tag.rsplit("}", 1)[-1]
+        if tag == "p":
+            para = Paragraph(child, document)
+            text = para.text.strip()
+            if not text:
+                out.append("")
+                continue
+            style = (para.style.name if para.style is not None else "") or ""
+            is_list = (child.find(".//{*}numPr") is not None
+                       or style.lower().startswith("list"))
+            if style.lower().startswith(("heading", "title")):
+                out.append(f"## {text}")
+            elif is_list:
+                out.append(f"- {text}")
+            else:
+                out.append(text)
+        elif tag == "tbl":
+            table = Table(child, document)
+            out.append("")
+            for row in table.rows:
+                cells = []
+                for cell in row.cells:
+                    c = " ".join(cell.text.split())
+                    if not cells or cells[-1] != c:  # merged cells repeat
+                        cells.append(c)
+                out.append(" | ".join(cells))
+            out.append("")
+
+    # Collapse runs of blank lines.
+    result, prev_blank = [], False
+    for line in out:
+        blank = not line.strip()
+        if blank and prev_blank:
+            continue
+        result.append(line)
+        prev_blank = blank
+    return "\n".join(result).strip()
+
+
 def extract_text_txt(filepath: Path) -> str:
     try:
         return filepath.read_text(encoding="utf-8", errors="replace")
@@ -275,10 +308,15 @@ def extract_text_txt(filepath: Path) -> str:
         return ""
 
 
+SUPPORTED_SUFFIXES = (".pdf", ".docx", ".txt")
+
+
 def extract_text(filepath: Path) -> str:
     suffix = filepath.suffix.lower()
     if suffix == ".pdf":
         return extract_text_pdf(filepath)
+    elif suffix == ".docx":
+        return extract_text_docx(filepath)
     elif suffix == ".txt":
         return extract_text_txt(filepath)
     else:
@@ -286,113 +324,36 @@ def extract_text(filepath: Path) -> str:
         return ""
 
 
-
-# ---------------------------------------------------------------------------
-# Prompt generation
-# ---------------------------------------------------------------------------
-
-def build_prompt(doc: dict, text: str, extraction_prompt_template: str) -> str:
-    """
-    Build the full extraction prompt for a single document.
-    The document text is embedded directly — no file upload needed.
-    """
-    header = f"""---
-action: extract
-output_file: notes_{doc['id']}.md
-doc_id: {doc['id']}
-doc_type: {doc['type']}
-generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
-notes: {doc.get('notes', '')}
----
-
-"""
-    doc_block = f"""## Document: {doc['id']}
-**Type:** {doc['type']}
-**File:** {doc['filepath']}
-**Notes:** {doc.get('notes', '')}
-
-```
-{text}
-```
-
----
-
-"""
-    return header + doc_block + extraction_prompt_template
-
-
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
 
-def cmd_extract(doc_ids: list[str], state: dict) -> None:
-    BATCH_NOTES_DIR.mkdir(exist_ok=True)
-    STRIPPED_TEXT_DIR.mkdir(exist_ok=True)
-    extraction_prompt = load_extraction_prompt()
-
+def cmd_strip(doc_ids: list[str], state: dict, corpus, force: bool = False) -> None:
+    corpus.stripped_text_dir.mkdir(parents=True, exist_ok=True)
     docs_by_id = {d["id"]: d for d in state["documents"]}
 
     for doc_id in doc_ids:
         if doc_id not in docs_by_id:
-            print(f"ERROR: Document ID not found: {doc_id}")
+            print(f"ERROR: Document ID not found in corpus '{corpus.name}': {doc_id}")
             continue
 
         doc = docs_by_id[doc_id]
         filepath = Path(doc["filepath"])
-        stripped_path = STRIPPED_TEXT_DIR / f"{doc_id}.txt"
+        stripped_path = corpus.stripped_text_dir / f"{doc_id}.txt"
 
-        # Reuse saved stripped text if it exists
-        if stripped_path.exists():
-            print(f"Reusing stripped text: {stripped_path}")
-            text = stripped_path.read_text(encoding="utf-8")
-        else:
-            if not filepath.exists():
-                print(f"ERROR: File not found: {filepath}")
-                continue
-            print(f"Extracting text: {filepath.name} ...", end=" ", flush=True)
-            text = extract_text(filepath)
-            if not text.strip():
-                print("EMPTY — skipping")
-                continue
-            print(f"{len(text):,} chars")
-            stripped_path.write_text(text, encoding="utf-8")
-            print(f"  → Stripped text saved: {stripped_path}")
-
-        prompt = build_prompt(doc, text, extraction_prompt)
-        prompt_path = BATCH_NOTES_DIR / f"prompt_{doc_id}.md"
-        prompt_path.write_text(prompt, encoding="utf-8")
-
-        print(f"  → Prompt written: {prompt_path}")
-        print(f"  → Upload {prompt_path.name} to Claude → download notes_{doc_id}.md")
-        print(f"  → Then run: python extract.py --mark-done {doc_id} batch_notes/notes_{doc_id}.md")
-        print()
-
-
-def cmd_all(state: dict) -> None:
-    unprocessed = [d["id"] for d in state["documents"] if not d.get("processed")]
-    if not unprocessed:
-        print("All documents processed.")
-        return
-    print(f"Extracting {len(unprocessed)} unprocessed document(s)...\n")
-    cmd_extract(unprocessed, state)
-
-
-def cmd_mark_done(doc_id: str, notes_file: str, state: dict) -> None:
-    notes_path = Path(notes_file)
-    if not notes_path.exists():
-        print(f"ERROR: Notes file not found: {notes_path}")
-        sys.exit(1)
-
-    for doc in state["documents"]:
-        if doc["id"] == doc_id:
-            doc["processed"] = True
-            doc["batch_notes_file"] = str(notes_path)
-            doc["processed_date"] = datetime.now().strftime("%Y-%m-%d")
-            save_state(state)
-            print(f"Marked {doc_id} as processed. Notes: {notes_path}")
-            return
-
-    print(f"ERROR: Document ID not found: {doc_id}")
+        if stripped_path.exists() and not force:
+            print(f"Exists (reusing): {corpus.relative(stripped_path)}")
+            continue
+        if not filepath.exists():
+            print(f"ERROR: Source file not found: {filepath}")
+            continue
+        print(f"Stripping: {filepath.name} ...", end=" ", flush=True)
+        text = extract_text(filepath)
+        if not text.strip():
+            print("EMPTY — skipping")
+            continue
+        stripped_path.write_text(text, encoding="utf-8")
+        print(f"{len(text):,} chars -> {corpus.relative(stripped_path)}")
 
 
 # ---------------------------------------------------------------------------
@@ -401,23 +362,33 @@ def cmd_mark_done(doc_id: str, notes_file: str, state: dict) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Prepare extraction prompts for unprocessed corpus documents."
+        description="Strip registered corpus documents to plain text."
     )
-    parser.add_argument("doc_ids", nargs="*", help="Document IDs to extract")
+    add_selector_args(parser)
+    parser.add_argument("doc_ids", nargs="*", help="Document IDs to strip")
     parser.add_argument("--all", action="store_true",
-                        help="Extract all unprocessed documents")
-    parser.add_argument("--mark-done", nargs=2, metavar=("DOC_ID", "NOTES_FILE"),
-                        help="Mark a document as processed and record its notes file")
+                        help="Strip all unprocessed, non-holdout documents")
+    parser.add_argument("--force", action="store_true",
+                        help="Re-strip even if stripped text already exists")
     args = parser.parse_args()
 
-    state = load_state()
+    corpus = load_corpus(args.corpus, args.profile)
+    if not corpus.state_file.exists():
+        print(f"ERROR: {corpus.relative(corpus.state_file)} not found in "
+              f"{corpus.root}. Run corpus.py --add first.")
+        sys.exit(1)
+    state = read_yaml(corpus.state_file, {"documents": []})
+    state.setdefault("documents", [])
 
-    if args.mark_done:
-        cmd_mark_done(args.mark_done[0], args.mark_done[1], state)
-    elif args.all:
-        cmd_all(state)
+    if args.all:
+        ids = [d["id"] for d in state["documents"]
+               if not d.get("processed") and not d.get("holdout")]
+        if not ids:
+            print("All documents processed.")
+            return
+        cmd_strip(ids, state, corpus, force=args.force)
     elif args.doc_ids:
-        cmd_extract(args.doc_ids, state)
+        cmd_strip(args.doc_ids, state, corpus, force=args.force)
     else:
         parser.print_help()
 

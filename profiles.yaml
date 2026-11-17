@@ -1,30 +1,58 @@
 # profiles.yaml
 # ---------------------------------------------------------------------------
-# Purpose-specific voice skills built from the same corpus of batch notes.
+# Corpora and purpose-specific voice skills.
 #
-# Each profile is a narrow SKILL.md aimed at one writing context, rather than
-# one monolithic general-purpose voice model. skill.py reads this file and uses
-# the selected profile to:
-#   - filter the corpus to the relevant document types  (corpus_types)
-#   - pick the synthesis instructions                    (synthesis_template)
-#   - decide where the built skill is written            (output)
-#   - set the skill's frontmatter name                   (skill_name)
-#   - communicate a length budget to Claude              (target_tokens)
-#   - tell Claude how to handle LaTeX/.bib mechanics      (latex_policy)
+# CORPORA. Each author's documents live in their own workspace,
+# corpora/<name>/ (gitignored: state, notes, stripped text, prompts, archive,
+# overrides, validation). A corpus entry sets the domain: which document types
+# are valid, which nine-dimension rubric extraction reads against, which
+# extraction instructions are used, and whether extraction reads one document
+# per subagent (per_document) or the whole pending set in one subagent (batch).
 #
-# Add a new profile (e.g. `email`) as a new entry here — no script changes
-# needed. The per-profile refinement flag in corpus_state.yaml is
+# PROFILES. Each profile is a narrow SKILL.md aimed at one writing context and
+# built from one corpus. skill.py uses the selected profile to:
+#   - pick its corpus                                      (corpus)
+#   - filter that corpus to the relevant document types    (corpus_types)
+#   - pick the synthesis instructions and output format    (synthesis_template,
+#                                                           skill_template)
+#   - decide where the built skill is written              (output)
+#   - set the skill's frontmatter name                     (skill_name)
+#   - communicate a length budget to Claude                (target_tokens)
+#   - tell Claude how to handle markup / format             (latex_policy or
+#                                                           format_policy)
+#
+# LOCAL-ONLY ENTRIES. profiles.local.yaml (gitignored) is merged over this
+# file. Put any corpus or profile that must stay off GitHub there, for example
+# another author's voice. Its built skill should write under corpora/<name>/ so
+# the skill stays untracked too.
+#
+# The per-profile refinement flag in a corpus_state.yaml is
 # `refined_into_skill_<profile>`, so building one skill never marks documents
 # as incorporated into another.
 #
-# `default_profile` is used when --profile is omitted on the skill.py CLI.
+# `default_profile` is used when --profile is omitted on the CLI.
 # ---------------------------------------------------------------------------
 
 default_profile: paper
 
+corpora:
+
+  wolf:
+    root: corpora/wolf
+    description: Eric Wolf's scientific writing (planetary climate / exoplanets).
+    doc_types: [journal_paper, proposal, research_statement, letter_of_rec,
+                review_perspective, technical_email, other]
+    default_type_for_suffix:
+      .pdf: journal_paper
+      .txt: technical_email
+    dimensions: core/EVALUATION_DIMENSIONS.md
+    extraction_template: templates/extraction_prompt.md
+    extraction_mode: per_document
+
 profiles:
 
   paper:
+    corpus: wolf
     skill_name: paper-voice
     purpose: >
       Formal journal-paper and proposal manuscript writing, invoked by Claude

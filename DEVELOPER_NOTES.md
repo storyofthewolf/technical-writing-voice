@@ -22,12 +22,14 @@ python corpus.py --pending --pending-types T [T..] # restrict --pending to docum
 ```
 No `--confidence` / `--set-confidence` — confidence weighting was removed; documents contribute evenly.
 
-### extract.py — strip to text, generate extraction prompt
+### extract.py — strip to text (no prompts; the model read is /extract-voice-notes)
 ```
-python extract.py DOC_ID [DOC_ID ...]              # strip + build prompt for specific docs
-python extract.py --all                            # all unprocessed
-python extract.py --mark-done DOC_ID NOTES_FILE    # manual fallback if auto-detect misses a file
+python extract.py [--corpus N] DOC_ID [DOC_ID ...] # strip specific docs (.pdf/.docx/.txt)
+python extract.py [--corpus N] --all [--force]     # all unprocessed, non-holdout
 ```
+Prompt files and `--mark-done` were removed (2026-11): they existed only for the
+claude.ai copy-paste loop. Auto-mark in `corpus.py` covers both `notes_{doc}.md`
+and batch notes files whose header lists `doc_ids`.
 No `--priority` — it selected the highest-confidence doc; removed with confidence.
 
 ### skill.py — build/maintain a profile's SKILL.md
@@ -63,8 +65,8 @@ Resolves the profile via `skill.py`'s `load_profile` (default: `default_profile`
 
 | Skill | Drives | Model work |
 |-------|--------|-----------|
-| `/extract-corpus` | `corpus.py --pending`, `extract.py` | one cold Opus subagent **per document** |
-| `/build-skill` | `skill.py --bootstrap`/`--refine --all`/`--apply` | one cold Opus subagent over **all** profile notes |
+| `/extract-voice-notes` | `corpus.py --pending`, `extract.py` | one cold Opus subagent **per document** |
+| `/synthesize-voice` | `skill.py --bootstrap`/`--refine --all`/`--apply` | one cold Opus subagent over **all** profile notes |
 
 Both delegate the model read to cold subagents (no inherited skills/context) to
 prevent an existing voice skill from contaminating the read. Extraction shards
@@ -143,7 +145,7 @@ Adding a profile is a data edit — no script changes.
 ## Conventions / gotchas
 
 - Scripts resolve paths from `Path(__file__).parent` — runnable from any directory.
-- Gitignored (local data, not source): `corpus_state.yaml`, `overrides.yaml`, `SKILL.md` (matches `skills/*/SKILL.md` too), `batch_notes/`, `stripped_text/`, `prompts/`, `archive/`.
+- Gitignored (local data, not source): everything under `corpora/` (each corpus's `corpus_state.yaml`, `overrides.yaml`, `batch_notes/`, `stripped_text/`, `prompts/`, `archive/`, `validation/`, and local-only built skills) plus `profiles.local.yaml`. Tracked: `skills/paper/SKILL.md`. All paths in this file are relative to a corpus root `corpora/<name>/`.
 - `.claude/`: only `settings.local.json` is ignored; `.claude/skills/**` is tracked.
 - Confidence weighting fully removed — see the "all documents contribute evenly" invariant in CLAUDE.md.
 - `templates/extraction_prompt.md` is the single analysis contract shared by the Claude Code path and any manual claude.ai run.
