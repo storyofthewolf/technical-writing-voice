@@ -28,7 +28,7 @@ See `README.md` for full workflow documentation.
 - `profiles.yaml` — defines `corpora` (root, `doc_types`, `dimensions` rubric, `extraction_template`, `extraction_mode`) and `profiles` (corpus, skill name, optional `writer_name`, purpose, `corpus_types`, synthesis and skill templates, output path, token budget, `latex_policy` or `format_policy`) plus `default_profile`. Required. `profiles.local.yaml` (gitignored) is merged over it for local-only entries.
 - `corpora/<name>/corpus_state.yaml` — that corpus's documents and processing state. Incorporation is tracked **per profile** via `refined_into_skill_<profile>` flags; `holdout: true` excludes a document from extraction and synthesis. Stored paths are relative to the corpus root.
 - `corpora/<name>/overrides.yaml` — that corpus's manual editorial directives; never touched by `archive.py`; injected by `skill.py --apply` or `--overrides`.
-- `skills/<profile>/SKILL.md` — the built voice skill for each profile (e.g. `skills/paper/SKILL.md`). Tracked in git; installed to `~/.claude/skills/` by skill-sync (registry: `~/Research/tools/skill-sync/skills.toml`).
+- `skills/<profile>/SKILL.md` — the built voice skill for each profile (e.g. `skills/paper/SKILL.md`). Tracked in git; installed to `~/.claude/skills/` by skill-sync (registry: `~/Tools/skill-sync/skills.toml`).
 - `templates/` — LLM instruction templates embedded in generated prompts; not modified by scripts
   - `extraction_prompt.md` — per-document voice extraction instructions (science)
   - `extraction_batch.md` — domain-neutral batch extraction (one subagent over many short documents, recurrence counts)
