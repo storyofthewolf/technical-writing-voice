@@ -33,6 +33,8 @@ It keeps the same nine dimensions as the scientific framework (`core/EVALUATION_
 
 **Member email** (`member_email`): direct correspondence to members or member groups. Lowest scaffold.
 
+**Proposal** (`proposal`): a grant, program, or policy proposal written for a funder, agency, or board, often under required section headings. High scaffold for layout, but long, so it shows the writer's sustained argument, how they justify an ask, and how they handle evidence at length. It is one document: in a batch read, count it once for recurrence, however long it is, and do not let its length outweigh the shorter pieces.
+
 **Other** (`other`): specify in the document notes.
 
 ### The scaffold spectrum
